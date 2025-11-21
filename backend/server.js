@@ -46,10 +46,28 @@ const limiter = rateLimit({
 // Middleware
 app.use(helmet());
 app.use(compression());
+
+const allowedOrigins = [
+  process.env.CLIENT_URL,
+  'https://aurafixx.com',
+  'http://localhost:3000'
+].filter(Boolean);
+
 app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:3000',
+  origin: function(origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error('Not allowed by CORS'));
+  },
   credentials: true
 }));
+
+app.options('*', cors({
+  origin: allowedOrigins,
+  credentials: true
+}));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan('dev'));
