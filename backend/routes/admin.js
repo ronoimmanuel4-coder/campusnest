@@ -473,8 +473,15 @@ router.get('/payments', async (req, res) => {
     }
     
     const payments = await Payment.find(query)
-      .populate('user', 'name email')
-      .populate('property', 'title')
+      .populate('user', 'name email phone role')
+      .populate({
+        path: 'property',
+        select: 'title landlord',
+        populate: {
+          path: 'landlord',
+          select: 'name email phone role'
+        }
+      })
       .sort(sortBy)
       .limit(limit * 1)
       .skip((page - 1) * limit);

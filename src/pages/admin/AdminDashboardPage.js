@@ -31,12 +31,12 @@ const AdminDashboardPage = () => {
       {/* Admin Header */}
       <div className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-4">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 py-4">
             <div className="flex items-center">
               <Shield className="h-8 w-8 text-primary-600 mr-3" />
               <h1 className="text-2xl font-bold text-gray-900">Admin Control Panel</h1>
             </div>
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-4 self-end sm:self-auto">
               <button className="relative p-2 text-gray-400 hover:text-gray-600">
                 <Bell className="h-6 w-6" />
                 {notifications > 0 && (

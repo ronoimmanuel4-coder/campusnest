@@ -10,6 +10,7 @@ import toast from 'react-hot-toast';
 const AdminOverview = () => {
   const [stats, setStats] = useState({});
   const [recentActivity, setRecentActivity] = useState([]);
+  const [analytics, setAnalytics] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [timeRange, setTimeRange] = useState('7days');
 
@@ -19,9 +20,63 @@ const AdminOverview = () => {
 
   const fetchDashboardData = async () => {
     try {
-      const response = await adminAPI.getDashboard({ timeRange });
-      setStats(response.data.statistics || {});
-      setRecentActivity(response.data.recentActivity || []);
+      const now = new Date();
+      const start = new Date();
+
+      if (timeRange === '24hours') {
+        start.setDate(now.getDate() - 1);
+      } else if (timeRange === '7days') {
+        start.setDate(now.getDate() - 7);
+      } else if (timeRange === '30days') {
+        start.setDate(now.getDate() - 30);
+      } else if (timeRange === '90days') {
+        start.setDate(now.getDate() - 90);
+      }
+
+      const [dashboardRes, analyticsRes] = await Promise.all([
+        adminAPI.getDashboard(),
+        adminAPI.getAnalytics({
+          startDate: start.toISOString(),
+          groupBy: 'day'
+        })
+      ]);
+
+      const dashboard = dashboardRes.data?.data || {};
+      const { statistics = {}, topProperties = [], recentActivities = {} } = dashboard;
+
+      setStats({
+        ...statistics,
+        topProperties
+      });
+
+      const activityItems = [];
+
+      (recentActivities.payments || []).forEach((payment) => {
+        activityItems.push({
+          type: 'payment',
+          title: `Payment of KSh ${Number(payment.amount || 0).toLocaleString()} by ${payment.user?.name || payment.user?.email || 'Unknown user'}`,
+          time: payment.createdAt
+        });
+      });
+
+      (recentActivities.users || []).forEach((user) => {
+        activityItems.push({
+          type: 'user',
+          title: `New ${user.role || 'user'}: ${user.name || user.email}`,
+          time: user.createdAt
+        });
+      });
+
+      (recentActivities.properties || []).forEach((property) => {
+        activityItems.push({
+          type: 'property',
+          title: `New property: ${property.title}`,
+          time: property.createdAt
+        });
+      });
+
+      setRecentActivity(activityItems);
+      setAnalytics(analyticsRes.data?.data || {});
     } catch (error) {
       toast.error('Failed to load dashboard data');
     } finally {
@@ -37,33 +92,55 @@ const AdminOverview = () => {
     );
   }
 
+  const usersStats = stats.users || {};
+  const propertiesStats = stats.properties || {};
+  const paymentsStats = stats.payments || {};
+  const reviewsStats = stats.reviews || {};
+
+  const totalUsers = usersStats.total || 0;
+  const newUsersThisMonth = usersStats.newThisMonth || 0;
+  const userGrowth =
+    totalUsers > 0 ? Math.round((newUsersThisMonth / totalUsers) * 100) : 0;
+
+  const activeProperties = propertiesStats.active || 0;
+  const totalProperties = propertiesStats.total || 0;
+  const pendingProperties = Math.max(totalProperties - activeProperties, 0);
+
+  const monthlyRevenue = paymentsStats.revenueThisMonth || 0;
+  const totalRevenue = paymentsStats.totalRevenue || 0;
+  const revenueShare =
+    totalRevenue > 0 ? Math.round((monthlyRevenue / totalRevenue) * 100) : 0;
+
+  const averageRating = reviewsStats.averageRating || 0;
+  const totalReviews = reviewsStats.total || 0;
+
   const statCards = [
     {
       title: 'Total Users',
-      value: stats.users?.total || 0,
-      change: stats.users?.percentageChange || 0,
-      changeValue: `+${stats.users?.newThisWeek || 0} this week`,
+      value: totalUsers,
+      change: userGrowth,
+      changeValue: `+${newUsersThisMonth} this month`,
       icon: Users,
       color: 'blue'
     },
     {
       title: 'Active Properties',
-      value: stats.properties?.active || 0,
-      subtitle: `${stats.properties?.pending || 0} pending approval`,
+      value: activeProperties,
+      subtitle: `${pendingProperties} pending approval`,
       icon: Home,
       color: 'green'
     },
     {
       title: 'Monthly Revenue',
-      value: `KSh ${(stats.revenue?.monthly || 0).toLocaleString()}`,
-      change: stats.revenue?.percentageChange || 0,
+      value: `KSh ${Number(monthlyRevenue || 0).toLocaleString()}`,
+      change: revenueShare,
       icon: DollarSign,
       color: 'yellow'
     },
     {
       title: 'Average Rating',
-      value: stats.reviews?.average?.toFixed(1) || '0.0',
-      subtitle: `${stats.reviews?.total || 0} total reviews`,
+      value: averageRating.toFixed(1),
+      subtitle: `${totalReviews} total reviews`,
       icon: Star,
       color: 'purple'
     }
@@ -78,6 +155,50 @@ const AdminOverview = () => {
     };
     return colors[color] || colors.blue;
   };
+
+  const activityData = (analytics?.users || []).slice(-10);
+  const maxActivity = activityData.reduce(
+    (max, point) => Math.max(max, point.count || 0),
+    0
+  );
+
+  const revenueData = (analytics?.payments || []).slice(-10);
+  const maxRevenue = revenueData.reduce(
+    (max, point) => Math.max(max, point.totalAmount || 0),
+    0
+  );
+
+  const formatDateLabel = (value) => {
+    if (!value) return '';
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return String(value);
+    return `${d.getMonth() + 1}/${d.getDate()}`;
+  };
+
+  const buildLinePoints = (data, max, getValue) => {
+    if (!data.length || !max) return '';
+    const n = data.length;
+    return data
+      .map((point, index) => {
+        const x = n === 1 ? 50 : (index / (n - 1)) * 90 + 5;
+        const value = getValue(point) || 0;
+        const y = 95 - (value / max) * 80;
+        return `${x},${y}`;
+      })
+      .join(' ');
+  };
+
+  const activityPoints = buildLinePoints(
+    activityData,
+    maxActivity,
+    (p) => p.count || 0
+  );
+
+  const revenuePoints = buildLinePoints(
+    revenueData,
+    maxRevenue,
+    (p) => p.totalAmount || 0
+  );
 
   return (
     <div>
@@ -134,9 +255,39 @@ const AdminOverview = () => {
             <h3 className="text-lg font-semibold text-gray-900">Platform Activity</h3>
             <Activity className="h-5 w-5 text-gray-400" />
           </div>
-          <div className="h-64 flex items-center justify-center bg-gray-50 rounded">
-            <BarChart3 className="h-12 w-12 text-gray-300" />
-            <span className="ml-3 text-gray-500">Activity Chart</span>
+          <div className="h-64 bg-gray-50 rounded px-4 py-3">
+            {!activityData.length || !maxActivity ? (
+              <div className="flex items-center justify-center h-full text-gray-400 text-sm">
+                No activity data for selected period
+              </div>
+            ) : (
+              <svg viewBox="0 0 100 100" className="w-full h-full">
+                <polyline
+                  fill="none"
+                  stroke="#3b82f6"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  points={activityPoints}
+                />
+                {activityData.map((point, index) => {
+                  const n = activityData.length || 1;
+                  const x = n === 1 ? 50 : (index / (n - 1)) * 90 + 5;
+                  const value = point.count || 0;
+                  const y =
+                    maxActivity > 0 ? 95 - (value / maxActivity) * 80 : 95;
+                  return (
+                    <circle
+                      key={point._id || index}
+                      cx={x}
+                      cy={y}
+                      r={1.8}
+                      fill="#1d4ed8"
+                    />
+                  );
+                })}
+              </svg>
+            )}
           </div>
         </div>
 
@@ -146,9 +297,39 @@ const AdminOverview = () => {
             <h3 className="text-lg font-semibold text-gray-900">Revenue Trend</h3>
             <TrendingUp className="h-5 w-5 text-green-500" />
           </div>
-          <div className="h-64 flex items-center justify-center bg-gray-50 rounded">
-            <DollarSign className="h-12 w-12 text-gray-300" />
-            <span className="ml-3 text-gray-500">Revenue Chart</span>
+          <div className="h-64 bg-gray-50 rounded px-4 py-3">
+            {!revenueData.length || !maxRevenue ? (
+              <div className="flex items-center justify-center h-full text-gray-400 text-sm">
+                No revenue data for selected period
+              </div>
+            ) : (
+              <svg viewBox="0 0 100 100" className="w-full h-full">
+                <polyline
+                  fill="none"
+                  stroke="#22c55e"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  points={revenuePoints}
+                />
+                {revenueData.map((point, index) => {
+                  const n = revenueData.length || 1;
+                  const x = n === 1 ? 50 : (index / (n - 1)) * 90 + 5;
+                  const amount = point.totalAmount || 0;
+                  const y =
+                    maxRevenue > 0 ? 95 - (amount / maxRevenue) * 80 : 95;
+                  return (
+                    <circle
+                      key={point._id || index}
+                      cx={x}
+                      cy={y}
+                      r={1.8}
+                      fill="#16a34a"
+                    />
+                  );
+                })}
+              </svg>
+            )}
           </div>
         </div>
       </div>
@@ -174,7 +355,9 @@ const AdminOverview = () => {
                 </div>
                 <div className="flex-1">
                   <p className="text-sm font-medium text-gray-900">{activity.title}</p>
-                  <p className="text-xs text-gray-500">{activity.time}</p>
+                  <p className="text-xs text-gray-500">
+                    {activity.time ? new Date(activity.time).toLocaleString() : ''}
+                  </p>
                 </div>
               </div>
             ))}
@@ -189,15 +372,19 @@ const AdminOverview = () => {
               <div key={index} className="flex items-center justify-between">
                 <div className="flex-1">
                   <p className="text-sm font-medium text-gray-900">{property.title}</p>
-                  <p className="text-xs text-gray-500">{property.location}</p>
+                  <p className="text-xs text-gray-500">
+                    {property.location?.area || property.location?.campus || 'Unknown location'}
+                  </p>
                 </div>
                 <div className="text-right">
                   <p className="text-sm font-semibold text-gray-900">
-                    {property.views} views
+                    {(property.stats?.views || 0)} views
                   </p>
                   <div className="flex items-center text-xs text-yellow-600">
                     <Star className="h-3 w-3 mr-1" />
-                    {property.rating}
+                    {property.rating?.average !== undefined
+                      ? property.rating.average.toFixed(1)
+                      : 'N/A'}
                   </div>
                 </div>
               </div>

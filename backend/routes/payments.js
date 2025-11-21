@@ -10,6 +10,21 @@ const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const paypal = require('paypal-rest-sdk');
 const PAYSTACK_BASE_URL = process.env.PAYSTACK_BASE_URL || 'https://api.paystack.co';
 
+let twilioClient = null;
+if (
+  process.env.TWILIO_ACCOUNT_SID &&
+  process.env.TWILIO_AUTH_TOKEN &&
+  process.env.TWILIO_ACCOUNT_SID.startsWith('AC')
+) {
+  twilioClient = require('twilio')(
+    process.env.TWILIO_ACCOUNT_SID,
+    process.env.TWILIO_AUTH_TOKEN
+  );
+}
+
+const SUPPORT_WHATSAPP_NUMBER =
+  process.env.SUPPORT_WHATSAPP_NUMBER || 'whatsapp:+254741218862';
+
 // Configure PayPal
 paypal.configure({
   mode: process.env.PAYPAL_MODE || 'sandbox',
@@ -33,6 +48,70 @@ const getMpesaAccessToken = async () => {
   );
   
   return response.data.access_token;
+};
+
+const sendUnlockSupportNotification = async (payment) => {
+  try {
+    if (!twilioClient) {
+      return;
+    }
+
+    if (
+      !payment ||
+      payment.paymentType !== 'unlock' ||
+      payment.status !== 'completed' ||
+      !payment.property
+    ) {
+      return;
+    }
+
+    const populatedPayment = await Payment.findById(payment._id)
+      .populate('user', 'name email phone role')
+      .populate({
+        path: 'property',
+        select: 'title location landlord',
+        populate: { path: 'landlord', select: 'name email phone role' }
+      });
+
+    if (!populatedPayment || !populatedPayment.property) {
+      return;
+    }
+
+    const { user, property } = populatedPayment;
+    const landlord = property.landlord;
+
+    const body = `
+*New Property Unlock*
+
+Property: ${property.title || 'N/A'}
+Area: ${property.location?.area || 'N/A'}
+
+Landlord:
+- Name: ${landlord?.name || 'N/A'}
+- Phone: ${landlord?.phone || 'N/A'}
+- Email: ${landlord?.email || 'N/A'}
+
+User:
+- Name: ${user?.name || 'N/A'}
+- Phone: ${user?.phone || 'N/A'}
+- Email: ${user?.email || 'N/A'}
+
+Payment:
+- Amount: KSh ${payment.amount}
+- Method: ${payment.paymentMethod}
+- Status: ${payment.status}
+
+_Sent automatically by CampusNest_
+    `.trim();
+
+    await twilioClient.messages.create({
+      body,
+      from: process.env.TWILIO_WHATSAPP_NUMBER,
+      to: SUPPORT_WHATSAPP_NUMBER
+    });
+  } catch (err) {
+    console.error('Failed to send unlock support WhatsApp notification:', err.message);
+  }
 };
 
 // @route   POST /api/payments/unlock/:propertyId
@@ -172,6 +251,12 @@ router.get('/paystack/verify/:reference', protect, async (req, res) => {
     };
     payment.completedAt = Date.now();
     await payment.save();
+
+    try {
+      await sendUnlockSupportNotification(payment);
+    } catch (notifyError) {
+      console.error('Paystack unlock support notification error:', notifyError.message);
+    }
 
     return res.json({
       success: true,
@@ -430,6 +515,12 @@ router.post('/mpesa/callback/:paymentId', async (req, res) => {
       payment.completedAt = Date.now();
       await payment.save();
       
+      try {
+        await sendUnlockSupportNotification(payment);
+      } catch (notifyError) {
+        console.error('M-Pesa unlock support notification error:', notifyError.message);
+      }
+      
       // Update user's unlocked properties
       await User.findByIdAndUpdate(payment.user, {
         $addToSet: {
@@ -496,6 +587,12 @@ router.post('/stripe/webhook', express.raw({ type: 'application/json' }), async 
           payment.stripeDetails.receiptUrl = paymentIntent.charges.data[0]?.receipt_url;
           payment.completedAt = Date.now();
           await payment.save();
+          
+          try {
+            await sendUnlockSupportNotification(payment);
+          } catch (notifyError) {
+            console.error('Stripe unlock support notification error:', notifyError.message);
+          }
           
           // Update user's unlocked properties
           await User.findByIdAndUpdate(payment.user, {
@@ -583,6 +680,12 @@ router.post('/paypal/execute', protect, async (req, res) => {
         payment.paypalDetails.captureId = paypalPayment.transactions[0].related_resources[0].sale.id;
         payment.completedAt = Date.now();
         await payment.save();
+        
+        try {
+          await sendUnlockSupportNotification(payment);
+        } catch (notifyError) {
+          console.error('PayPal unlock support notification error:', notifyError.message);
+        }
         
         // Update user's unlocked properties
         await User.findByIdAndUpdate(payment.user, {

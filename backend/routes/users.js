@@ -684,6 +684,8 @@ router.get('/landlord-stats', protect, async (req, res) => {
       }
     ]);
     
+    const totalInquiries = viewStats[0]?.totalInquiries || 0;
+    
     // Get this week's views
     const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
     const thisWeekViews = await Property.aggregate([
@@ -721,8 +723,8 @@ router.get('/landlord-stats', protect, async (req, res) => {
           pendingProperties,
           totalViews: viewStats[0]?.totalViews || 0,
           viewsThisWeek: thisWeekViews[0]?.views || 0,
-          totalInquiries: viewStats[0]?.totalInquiries || 0,
-          pendingInquiries: 0, // TODO: Implement inquiries system
+          totalInquiries,
+          pendingInquiries: totalInquiries,
           averageRating: ratingStats[0]?.avgRating || 0,
           occupancyRate,
           responseRate: 85, // TODO: Calculate from actual inquiry responses

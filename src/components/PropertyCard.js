@@ -16,6 +16,7 @@ const PropertyCard = ({ property }) => {
   const distanceFromCampus = property.location?.distanceFromCampus?.value 
     ? `${property.location.distanceFromCampus.value} ${property.location.distanceFromCampus.unit}` 
     : property.distanceFromCampus || '0 km';
+  const vacancies = property.availability?.vacancies ?? property.vacancies ?? 0;
   
   // Get amenities list
   const amenitiesList = property.amenities 
@@ -46,9 +47,20 @@ const PropertyCard = ({ property }) => {
               Featured
             </div>
           )}
-          <div className="absolute bottom-2 left-2 bg-black bg-opacity-70 text-white px-3 py-1 rounded-md">
-            <span className="font-bold">KSh {(property.price?.amount || property.price || 0).toLocaleString()}</span>
-            <span className="text-sm">/month</span>
+          <div className="absolute bottom-2 left-2 bg-black bg-opacity-70 text-white px-3 py-1 rounded-md flex items-center space-x-2">
+            <div>
+              <span className="font-bold">KSh {(property.price?.amount || property.price || 0).toLocaleString()}</span>
+              <span className="text-sm">/month</span>
+            </div>
+            {vacancies > 0 ? (
+              <span className="ml-2 px-2 py-0.5 bg-green-500 text-white text-xs rounded-full whitespace-nowrap">
+                {vacancies} {vacancies === 1 ? 'vacancy' : 'vacancies'}
+              </span>
+            ) : (
+              <span className="ml-2 px-2 py-0.5 bg-gray-700 text-gray-200 text-xs rounded-full whitespace-nowrap">
+                Fully occupied
+              </span>
+            )}
           </div>
         </div>
 

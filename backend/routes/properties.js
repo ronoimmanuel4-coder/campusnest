@@ -259,38 +259,56 @@ router.get('/inquiries', protect, async (req, res) => {
       });
     }
     
-    // Mock data for now - can be replaced with actual inquiries model later
-    const inquiries = [
-      {
-        _id: '1',
-        user: {
-          name: 'John Doe',
-          email: 'john@example.com',
-          phone: '+254712345678'
-        },
-        property: {
-          title: 'Modern 2BR Apartment'
-        },
-        message: 'Hi, I\'m interested in viewing this property.',
-        createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
-        timeAgo: '2 days ago'
-      },
-      {
-        _id: '2',
-        user: {
-          name: 'Jane Smith',
-          email: 'jane@example.com',
-          phone: '+254712345679'
-        },
-        property: {
-          title: 'Cozy Studio Apartment'
-        },
-        message: 'Is this property still available?',
-        createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
-        timeAgo: '5 days ago'
-      }
-    ];
-    
+    // Find all properties for this landlord with their inquiries
+    const properties = await Property.find({ landlord: req.user._id })
+      .select('title inquiries')
+      .populate('inquiries.user', 'name email phone');
+
+    const inquiries = [];
+
+    const now = Date.now();
+
+    const formatTimeAgo = (date) => {
+      const diffMs = now - date.getTime();
+      const diffMinutes = Math.floor(diffMs / (1000 * 60));
+      const diffHours = Math.floor(diffMinutes / 60);
+      const diffDays = Math.floor(diffHours / 24);
+
+      if (diffMinutes < 1) return 'Just now';
+      if (diffMinutes < 60) return `${diffMinutes} minute${diffMinutes === 1 ? '' : 's'} ago`;
+      if (diffHours < 24) return `${diffHours} hour${diffHours === 1 ? '' : 's'} ago`;
+      return `${diffDays} day${diffDays === 1 ? '' : 's'} ago`;
+    };
+
+    properties.forEach((property) => {
+      (property.inquiries || []).forEach((inq) => {
+        const createdAt = inq.createdAt || new Date();
+        const baseMessage = inq.type === 'viewing'
+          ? `Viewing request on ${inq.date || ''} at ${inq.time || ''}${inq.specialRequests ? ` - ${inq.specialRequests}` : ''}`
+          : inq.message;
+
+        inquiries.push({
+          _id: inq._id,
+          user: inq.user,
+          property: {
+            _id: property._id,
+            title: property.title
+          },
+          message: baseMessage,
+          type: inq.type,
+          date: inq.date,
+          time: inq.time,
+          numberOfPeople: inq.numberOfPeople,
+          specialRequests: inq.specialRequests,
+          createdAt,
+          timeAgo: formatTimeAgo(createdAt)
+        });
+      });
+    });
+
+    // Newest first
+    inquiries.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
     res.json({
       success: true,
       count: inquiries.length,

@@ -28,8 +28,7 @@ router.post('/register', [
   body('phone').matches(/^\+254\d{9}$/).withMessage('Please provide a valid Kenyan phone number'),
   body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
   body('role').isIn(['student', 'landlord']).withMessage('Invalid role'),
-  body('university').if(body('role').equals('student')).notEmpty().withMessage('University is required for students'),
-  body('studentId').if(body('role').equals('student')).notEmpty().withMessage('Student ID is required')
+  body('university').if(body('role').equals('student')).notEmpty().withMessage('University is required for students')
 ], validate, async (req, res) => {
   try {
     const { name, email, phone, password, role, university, studentId } = req.body;

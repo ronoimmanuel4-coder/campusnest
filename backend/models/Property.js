@@ -149,6 +149,11 @@ const propertySchema = new mongoose.Schema({
       type: Date,
       default: Date.now
     },
+    vacancies: {
+      type: Number,
+      default: 0,
+      min: 0
+    },
     minimumStay: {
       value: Number,
       unit: {
@@ -242,6 +247,28 @@ const propertySchema = new mongoose.Schema({
       default: 0
     }
   },
+  
+  // Inquiries / viewing requests history
+  inquiries: [{
+    user: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    },
+    type: {
+      type: String,
+      enum: ['inquiry', 'viewing'],
+      default: 'inquiry'
+    },
+    message: String,
+    date: String,
+    time: String,
+    numberOfPeople: Number,
+    specialRequests: String,
+    createdAt: {
+      type: Date,
+      default: Date.now
+    }
+  }],
   
   // Reviews summary
   rating: {

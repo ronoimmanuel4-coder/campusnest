@@ -5,7 +5,7 @@ import {
   Calendar, Wifi, Car, Shield, Lock, Unlock, Check,
   ChevronLeft, ChevronRight, Star, CreditCard, Navigation, ExternalLink
 } from 'lucide-react';
-import { propertiesAPI, paymentsAPI } from '../services/api';
+import { propertiesAPI, paymentsAPI, whatsappAPI } from '../services/api';
 import toast from 'react-hot-toast';
 import Loader from '../components/Loader';
 
@@ -16,6 +16,14 @@ const PropertyDetailPage = () => {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [processing, setProcessing] = useState(false);
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [scheduleForm, setScheduleForm] = useState({
+    date: '',
+    time: '',
+    numberOfPeople: 1,
+    specialRequests: ''
+  });
+  const [scheduleLoading, setScheduleLoading] = useState(false);
 
   useEffect(() => {
     fetchProperty();
@@ -90,6 +98,9 @@ const PropertyDetailPage = () => {
     ? (property.premiumDetails?.caretaker?.phone || property.caretakerPhone || 'Not provided')
     : '+254 XXX XXX XXX';
   const hasGPS = property.premiumDetails?.gpsCoordinates?.latitude && property.premiumDetails?.gpsCoordinates?.longitude;
+  const supportContactName = 'Immanuel';
+  const supportContactPhone = '0741218862';
+  const supportContactWhatsApp = 'https://wa.me/254741218862';
   
   console.log('=== PROPERTY DETAIL DEBUG ===');
   console.log('Property ID:', property._id);
@@ -156,6 +167,53 @@ const PropertyDetailPage = () => {
       // Fallback to search by address
       const address = encodeURIComponent(exactLocation || `${property.title}, ${area}`);
       window.open(`https://www.google.com/maps/search/?api=1&query=${address}`, '_blank');
+    }
+  };
+
+  const openScheduleModal = () => {
+    if (!isUnlocked) {
+      toast.error('Please unlock premium details before scheduling a viewing.');
+      return;
+    }
+    setShowScheduleModal(true);
+  };
+
+  const handleScheduleChange = (e) => {
+    const { name, value } = e.target;
+    setScheduleForm((prev) => ({
+      ...prev,
+      [name]: name === 'numberOfPeople' ? Number(value) : value
+    }));
+  };
+
+  const handleScheduleSubmit = async (e) => {
+    e.preventDefault();
+
+    if (!scheduleForm.date || !scheduleForm.time) {
+      toast.error('Please select a date and time for viewing.');
+      return;
+    }
+
+    setScheduleLoading(true);
+    try {
+      await whatsappAPI.scheduleViewing({
+        propertyId: property._id,
+        date: scheduleForm.date,
+        time: scheduleForm.time,
+        numberOfPeople: scheduleForm.numberOfPeople,
+        specialRequests: scheduleForm.specialRequests
+      });
+
+      toast.success('Viewing request sent to the caretaker via WhatsApp');
+      setShowScheduleModal(false);
+    } catch (error) {
+      console.error('Schedule viewing error:', error);
+      toast.error(
+        error.response?.data?.message ||
+        'Failed to schedule viewing. Please try again.'
+      );
+    } finally {
+      setScheduleLoading(false);
     }
   };
 
@@ -284,7 +342,7 @@ const PropertyDetailPage = () => {
             {/* Premium Information */}
             <div className="bg-white rounded-lg shadow-lg p-6">
               <h3 className="text-xl font-semibold mb-4 flex items-center">
-                <Lock className={`h-5 w-5 mr-2 ${property.unlocked ? 'text-green-600' : 'text-gray-400'}`} />
+                <Lock className={`h-5 w-5 mr-2 ${isUnlocked ? 'text-green-600' : 'text-gray-400'}`} />
                 Premium Information
               </h3>
               
@@ -337,6 +395,32 @@ const PropertyDetailPage = () => {
                       </a>
                     </div>
                   </div>
+
+                  <div className="border rounded-lg p-4 bg-blue-50">
+                    <h4 className="font-semibold mb-2 text-gray-700">
+                      Need help with directions?
+                    </h4>
+                    <p className="text-gray-700 text-sm mb-3">
+                      If you are not sure how to use the GPS or need assistance finding this house,
+                      you can contact CampusNest support ({supportContactName}).
+                    </p>
+                    <div className="flex flex-col sm:flex-row sm:space-x-3 space-y-2 sm:space-y-0">
+                      <a
+                        href={`tel:${supportContactPhone}`}
+                        className="flex-1 btn-secondary text-center"
+                      >
+                        Call {supportContactName}
+                      </a>
+                      <a
+                        href={supportContactWhatsApp}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex-1 btn-primary text-center"
+                      >
+                        WhatsApp {supportContactName}
+                      </a>
+                    </div>
+                  </div>
                 </div>
               ) : (
                 <div className="relative">
@@ -383,14 +467,14 @@ const PropertyDetailPage = () => {
                 </p>
               </div>
 
-              {!property.unlocked ? (
+              {!isUnlocked ? (
                 <button onClick={handleUnlock} className="w-full btn-primary mb-4">
                   <Lock className="h-5 w-5 mr-2 inline" />
                   Unlock Full Details
                 </button>
               ) : (
                 <a 
-                  href={`tel:${property.caretakerPhone}`} 
+                  href={`tel:${caretakerPhone}`} 
                   className="w-full btn-primary mb-4 block text-center"
                 >
                   <Phone className="h-5 w-5 mr-2 inline" />
@@ -398,7 +482,7 @@ const PropertyDetailPage = () => {
                 </a>
               )}
 
-              <button className="w-full btn-secondary">
+              <button className="w-full btn-secondary" onClick={openScheduleModal}>
                 Schedule Viewing
               </button>
 
@@ -493,6 +577,91 @@ const PropertyDetailPage = () => {
 
             <p className="text-xs text-gray-500 text-center mt-4">
               Secure payment processed by CampusNest
+            </p>
+          </div>
+        </div>
+      )}
+
+      {showScheduleModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-md w-full p-6">
+            <h3 className="text-xl font-semibold mb-4">Schedule Viewing</h3>
+
+            <form onSubmit={handleScheduleSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Preferred Date
+                </label>
+                <input
+                  type="date"
+                  name="date"
+                  value={scheduleForm.date}
+                  onChange={handleScheduleChange}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Preferred Time
+                </label>
+                <input
+                  type="time"
+                  name="time"
+                  value={scheduleForm.time}
+                  onChange={handleScheduleChange}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Number of People
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  name="numberOfPeople"
+                  value={scheduleForm.numberOfPeople}
+                  onChange={handleScheduleChange}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Special Requests (optional)
+                </label>
+                <textarea
+                  name="specialRequests"
+                  rows="3"
+                  value={scheduleForm.specialRequests}
+                  onChange={handleScheduleChange}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                />
+              </div>
+
+              <div className="flex space-x-3 pt-2">
+                <button
+                  type="submit"
+                  disabled={scheduleLoading}
+                  className={`flex-1 btn-primary ${scheduleLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  {scheduleLoading ? 'Sending...' : 'Send Request'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowScheduleModal(false)}
+                  disabled={scheduleLoading}
+                  className="flex-1 btn-secondary"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+
+            <p className="text-xs text-gray-500 text-center mt-4">
+              We will send your viewing request to the caretaker via WhatsApp.
             </p>
           </div>
         </div>

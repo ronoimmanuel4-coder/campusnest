@@ -8,7 +8,7 @@ import {
 
 const AboutPage = () => {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 overflow-x-hidden">
       {/* Hero Section */}
       <section className="relative bg-gradient-to-br from-primary-600 via-primary-700 to-accent-600 text-white overflow-hidden">
         <div className="absolute inset-0 bg-black/10"></div>
@@ -17,7 +17,7 @@ const AboutPage = () => {
           <div className="absolute w-96 h-96 bg-accent-400/10 rounded-full blur-3xl bottom-0 left-0 animate-pulse animation-delay-2000"></div>
         </div>
         
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24">
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-20 lg:py-24">
           <div className="text-center">
             <div className="inline-block mb-6">
               <div className="flex items-center space-x-2 bg-white/10 backdrop-blur-sm px-4 py-2 rounded-full">
@@ -25,7 +25,7 @@ const AboutPage = () => {
                 <span className="text-sm font-medium">About CampusNest</span>
               </div>
             </div>
-            <h1 className="text-5xl md:text-6xl font-black mb-6 tracking-tight">
+            <h1 className="text-4xl sm:text-5xl md:text-6xl font-black mb-6 tracking-tight">
               You Decide Your <span className="text-yellow-300">Perfect Home</span>
             </h1>
             <p className="text-xl text-gray-100 max-w-3xl mx-auto">
@@ -41,7 +41,7 @@ const AboutPage = () => {
           <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
             <div className="grid md:grid-cols-2 gap-0">
               {/* Image Side */}
-              <div className="relative bg-gradient-to-br from-primary-600 to-accent-600 p-12 flex items-center justify-center">
+              <div className="relative bg-gradient-to-br from-primary-600 to-accent-600 p-8 md:p-12 flex items-center justify-center">
                 <div className="absolute inset-0 bg-black/5"></div>
                 <div className="relative">
                   {/* Placeholder for your photo */}
@@ -77,7 +77,7 @@ const AboutPage = () => {
               </div>
 
               {/* Content Side */}
-              <div className="p-12">
+              <div className="p-8 md:p-12">
                 <div className="mb-6">
                   <div className="inline-flex items-center space-x-2 bg-primary-50 px-4 py-2 rounded-full mb-4">
                     <Award className="h-4 w-4 text-primary-600" />

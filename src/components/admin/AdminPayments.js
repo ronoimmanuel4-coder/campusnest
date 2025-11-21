@@ -1,8 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import {
-  DollarSign, CreditCard, TrendingUp, Download, Filter,
-  Calendar, CheckCircle, XCircle, Clock, AlertTriangle,
-  RefreshCw, Search, ArrowUpRight, ArrowDownRight
+  DollarSign,
+  CreditCard,
+  TrendingUp,
+  Download,
+  Filter,
+  Calendar,
+  CheckCircle,
+  XCircle,
+  Clock,
+  AlertTriangle,
+  RefreshCw,
+  Search,
+  ArrowUpRight,
+  ArrowDownRight,
+  Phone,
+  MessageSquare
 } from 'lucide-react';
 import { adminAPI } from '../../services/api';
 import toast from 'react-hot-toast';
@@ -13,6 +26,7 @@ const AdminPayments = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [filterType, setFilterType] = useState('all');
   const [dateRange, setDateRange] = useState('30days');
+  const [refundingId, setRefundingId] = useState(null);
   
   useEffect(() => {
     fetchPayments();
@@ -20,13 +34,139 @@ const AdminPayments = () => {
 
   const fetchPayments = async () => {
     try {
-      const response = await adminAPI.getPayments({ filterType, dateRange });
-      setPayments(response.data.payments || []);
-      setStats(response.data.stats || {});
+      const params = {};
+
+      if (filterType !== 'all') {
+        params.paymentMethod = filterType;
+      }
+
+      if (dateRange !== 'all') {
+        const now = new Date();
+        const start = new Date();
+
+        if (dateRange === '7days') {
+          start.setDate(now.getDate() - 7);
+        } else if (dateRange === '30days') {
+          start.setDate(now.getDate() - 30);
+        } else if (dateRange === '90days') {
+          start.setDate(now.getDate() - 90);
+        }
+
+        params.startDate = start.toISOString();
+      }
+
+      const response = await adminAPI.getPayments(params);
+      const paymentsData = response.data?.data || [];
+      setPayments(paymentsData);
+
+      const completed = paymentsData.filter(p => p.status === 'completed');
+      const failed = paymentsData.filter(p => p.status === 'failed');
+
+      const totalRevenue = completed.reduce(
+        (sum, p) => sum + (p.amount || 0),
+        0
+      );
+
+      const now = new Date();
+      const currentYear = now.getFullYear();
+      const currentMonth = now.getMonth();
+
+      const monthlyCompleted = completed.filter(p => {
+        if (!p.createdAt) return false;
+        const d = new Date(p.createdAt);
+        return d.getFullYear() === currentYear && d.getMonth() === currentMonth;
+      });
+
+      const monthlyRevenue = monthlyCompleted.reduce(
+        (sum, p) => sum + (p.amount || 0),
+        0
+      );
+
+      const successRate = paymentsData.length
+        ? Math.round((completed.length / paymentsData.length) * 100)
+        : 0;
+
+      const failedAmount = failed.reduce(
+        (sum, p) => sum + (p.amount || 0),
+        0
+      );
+
+      setStats({
+        totalRevenue,
+        monthlyRevenue,
+        revenueGrowth: 0,
+        monthlyTransactions: monthlyCompleted.length,
+        successRate,
+        successfulPayments: completed.length,
+        failedPayments: failed.length,
+        failedAmount
+      });
     } catch (error) {
       toast.error('Failed to load payments');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleCallPerson = (person, label) => {
+    const phone = person?.phone;
+    if (!phone) {
+      toast.error(`No phone number for this ${label}`);
+      return;
+    }
+
+    window.location.href = `tel:${phone}`;
+  };
+
+  const handleWhatsAppPerson = (person, label, propertyTitle) => {
+    const phone = person?.phone;
+    if (!phone) {
+      toast.error(`No phone number for this ${label}`);
+      return;
+    }
+
+    const normalized = phone.replace(/[^0-9]/g, '');
+    const message = encodeURIComponent(
+      `Hi ${person?.name || ''}, I am contacting you regarding ${
+        propertyTitle || 'a property'
+      } on CampusNest.`
+    );
+
+    const url = `https://wa.me/${normalized}?text=${message}`;
+    window.open(url, '_blank');
+  };
+
+  const handleRefundPayment = async (payment) => {
+    if (!payment || payment.status !== 'completed') {
+      toast.error('Only completed payments can be refunded');
+      return;
+    }
+
+    const confirmRefund = window.confirm('Are you sure you want to mark this transaction as refunded?');
+    if (!confirmRefund) {
+      return;
+    }
+
+    const reason = window.prompt('Enter refund reason (optional):') || undefined;
+
+    try {
+      setRefundingId(payment._id);
+      const response = await adminAPI.refundPayment(payment._id, {
+        amount: payment.amount,
+        reason
+      });
+      const updatedPayment = response.data?.data;
+      if (updatedPayment) {
+        setPayments((prev) =>
+          prev.map((p) => (p._id === payment._id ? updatedPayment : p))
+        );
+      }
+      toast.success('Payment marked as refunded');
+    } catch (error) {
+      const message = error?.response?.data?.message || 'Failed to refund payment';
+      toast.error(message);
+    } finally {
+      setRefundingId(null);
     }
   };
 
@@ -161,6 +301,7 @@ const AdminPayments = () => {
             <option value="mpesa">M-Pesa</option>
             <option value="stripe">Stripe</option>
             <option value="paypal">PayPal</option>
+            <option value="paystack">Paystack</option>
           </select>
           <select
             value={dateRange}
@@ -177,7 +318,8 @@ const AdminPayments = () => {
 
       {/* Payments Table */}
       <div className="bg-white rounded-lg shadow overflow-hidden">
-        <table className="min-w-full divide-y divide-gray-200">
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
@@ -198,6 +340,9 @@ const AdminPayments = () => {
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                 Date
               </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                Actions
+              </th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
@@ -206,7 +351,7 @@ const AdminPayments = () => {
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div>
                     <p className="text-sm font-medium text-gray-900">
-                      {payment.transactionId}
+                      {payment.invoice?.invoiceNumber || payment._id}
                     </p>
                     <p className="text-xs text-gray-500">
                       {payment.property?.title}
@@ -226,20 +371,22 @@ const AdminPayments = () => {
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <span className={`px-2 py-1 text-xs rounded-full ${
-                    payment.method === 'mpesa' ? 'bg-green-100 text-green-800' :
-                    payment.method === 'stripe' ? 'bg-blue-100 text-blue-800' :
-                    'bg-yellow-100 text-yellow-800'
+                    payment.paymentMethod === 'mpesa' ? 'bg-green-100 text-green-800' :
+                    payment.paymentMethod === 'stripe' ? 'bg-blue-100 text-blue-800' :
+                    payment.paymentMethod === 'paypal' ? 'bg-indigo-100 text-indigo-800' :
+                    payment.paymentMethod === 'paystack' ? 'bg-yellow-100 text-yellow-800' :
+                    'bg-gray-100 text-gray-800'
                   }`}>
-                    {payment.method}
+                    {payment.paymentMethod}
                   </span>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <span className={`flex items-center text-sm ${
-                    payment.status === 'success' ? 'text-green-600' :
+                    payment.status === 'completed' ? 'text-green-600' :
                     payment.status === 'failed' ? 'text-red-600' :
                     'text-yellow-600'
                   }`}>
-                    {payment.status === 'success' && <CheckCircle className="h-4 w-4 mr-1" />}
+                    {payment.status === 'completed' && <CheckCircle className="h-4 w-4 mr-1" />}
                     {payment.status === 'failed' && <XCircle className="h-4 w-4 mr-1" />}
                     {payment.status === 'pending' && <Clock className="h-4 w-4 mr-1" />}
                     {payment.status}
@@ -248,10 +395,160 @@ const AdminPayments = () => {
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                   {new Date(payment.createdAt).toLocaleString()}
                 </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  {payment.status === 'completed' ? (
+                    <button
+                      onClick={() => handleRefundPayment(payment)}
+                      disabled={refundingId === payment._id}
+                      className="text-xs font-medium text-red-600 hover:text-red-900 disabled:opacity-50"
+                    >
+                      {refundingId === payment._id ? 'Refunding...' : 'Mark Refunded'}
+                    </button>
+                  ) : payment.status === 'refunded' ? (
+                    <span className="text-xs text-gray-500">Refunded</span>
+                  ) : (
+                    <span className="text-xs text-gray-400">No actions</span>
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
+        </div>
+      </div>
+
+      {/* Property unlocks: user + landlord contacts */}
+      <div className="mt-8">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">
+          Property Unlocks (User &amp; Landlord Contacts)
+        </h3>
+        <div className="bg-white rounded-lg shadow overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  Property
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  User (Student)
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  Landlord
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  Date
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {payments
+                .filter(
+                  (p) =>
+                    p.paymentType === 'unlock' &&
+                    p.status === 'completed' &&
+                    p.property
+                )
+                .map((payment) => (
+                  <tr key={payment._id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">
+                          {payment.property?.title || 'Unknown property'}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {payment.invoice?.invoiceNumber || payment._id}
+                        </p>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div>
+                        <p className="text-sm text-gray-900">
+                          {payment.user?.name || 'Unknown user'}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {payment.user?.email}
+                        </p>
+                        {payment.user?.phone && (
+                          <p className="text-xs text-gray-500">
+                            {payment.user.phone}
+                          </p>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div>
+                        <p className="text-sm text-gray-900">
+                          {payment.property?.landlord?.name || 'Unknown landlord'}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {payment.property?.landlord?.email}
+                        </p>
+                        {payment.property?.landlord?.phone && (
+                          <p className="text-xs text-gray-500">
+                            {payment.property.landlord.phone}
+                          </p>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {new Date(payment.createdAt).toLocaleString()}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex space-x-2">
+                        <button
+                          onClick={() => handleCallPerson(payment.user, 'user')}
+                          title="Call user"
+                          className="text-blue-600 hover:text-blue-900"
+                        >
+                          <Phone className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() =>
+                            handleWhatsAppPerson(
+                              payment.user,
+                              'user',
+                              payment.property?.title
+                            )
+                          }
+                          title="WhatsApp user"
+                          className="text-green-600 hover:text-green-900"
+                        >
+                          <MessageSquare className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() =>
+                            handleCallPerson(payment.property?.landlord, 'landlord')
+                          }
+                          title="Call landlord"
+                          className="text-orange-600 hover:text-orange-900"
+                        >
+                          <Phone className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() =>
+                            handleWhatsAppPerson(
+                              payment.property?.landlord,
+                              'landlord',
+                              payment.property?.title
+                            )
+                          }
+                          title="WhatsApp landlord"
+                          className="text-purple-600 hover:text-purple-900"
+                        >
+                          <MessageSquare className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+          </div>
+        </div>
       </div>
     </div>
   );

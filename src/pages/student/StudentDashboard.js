@@ -497,6 +497,14 @@ const StudentDashboard = () => {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {filteredNearbyProperties.slice(0, 3).map((property) => {
                   const affordability = calculateAffordability(property.price);
+                  const ratingObj = property.rating;
+                  const ratingValue =
+                    typeof ratingObj === 'number'
+                      ? ratingObj
+                      : typeof ratingObj?.average === 'number'
+                      ? ratingObj.average
+                      : null;
+
                   return (
                     <div key={property._id || property.id} className="bg-white rounded-lg shadow hover:shadow-lg transition-shadow">
                       <div className="relative">
@@ -534,7 +542,7 @@ const StudentDashboard = () => {
                           <div className="flex items-center">
                             <Star className="h-4 w-4 text-yellow-400 fill-current" />
                             <span className="ml-1 text-sm text-gray-600">
-                              {property.rating || '4.5'}
+                              {ratingValue != null ? ratingValue.toFixed(1) : '4.5'}
                             </span>
                           </div>
                         </div>

@@ -98,8 +98,19 @@ Thank you for using CampusNest!
       to: userWhatsApp
     });
     
-    // Update property inquiry stats
+    // Update property inquiry stats and history
     property.stats.inquiries += 1;
+    property.inquiries = property.inquiries || [];
+    property.inquiries.push({
+      user: user._id,
+      type: 'inquiry',
+      message,
+      date: null,
+      time: preferredTime || null,
+      numberOfPeople: null,
+      specialRequests: null,
+      createdAt: new Date()
+    });
     await property.save();
     
     res.json({
@@ -122,13 +133,6 @@ Thank you for using CampusNest!
 // @access  Private
 router.post('/schedule-viewing', protect, async (req, res) => {
   try {
-    if (!twilioClient) {
-      return res.status(503).json({
-        success: false,
-        message: 'WhatsApp service is not configured'
-      });
-    }
-    
     const { propertyId, date, time, numberOfPeople, specialRequests } = req.body;
     
     // Get property details
@@ -150,6 +154,29 @@ router.post('/schedule-viewing', protect, async (req, res) => {
       return res.status(403).json({
         success: false,
         message: 'You must unlock the property to schedule a viewing'
+      });
+    }
+
+    // Record viewing request in property inquiries history and stats
+    property.stats.inquiries += 1;
+    property.inquiries = property.inquiries || [];
+    property.inquiries.push({
+      user: user._id,
+      type: 'viewing',
+      message: null,
+      date,
+      time,
+      numberOfPeople,
+      specialRequests,
+      createdAt: new Date()
+    });
+    await property.save();
+
+    // If WhatsApp is not configured, still succeed so the frontend and dashboard work
+    if (!twilioClient) {
+      return res.json({
+        success: true,
+        message: 'Viewing request recorded. WhatsApp notifications are not configured on this server.'
       });
     }
     

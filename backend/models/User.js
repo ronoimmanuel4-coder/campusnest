@@ -90,8 +90,7 @@ const userSchema = new mongoose.Schema({
     required: function() { return this.role === 'student'; }
   },
   studentId: {
-    type: String,
-    required: function() { return this.role === 'student'; }
+    type: String
   },
   
   // Properties unlocked by the user
@@ -152,7 +151,7 @@ const userSchema = new mongoose.Schema({
 userSchema.virtual('profileComplete').get(function() {
   const requiredFields = ['name', 'email', 'phone'];
   if (this.role === 'student') {
-    requiredFields.push('university', 'studentId');
+    requiredFields.push('university');
   }
   return requiredFields.every(field => this[field]);
 });

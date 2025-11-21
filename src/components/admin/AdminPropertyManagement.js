@@ -243,9 +243,9 @@ const AdminPropertyManagement = () => {
         {filteredProperties.map((property) => (
           <div key={property._id} className="bg-white rounded-lg shadow">
             <div className="p-6">
-              <div className="flex justify-between">
+              <div className="flex flex-col lg:flex-row lg:justify-between gap-4">
                 {/* Property Info */}
-                <div className="flex space-x-4">
+                <div className="flex flex-col sm:flex-row gap-4">
                   {/* Image */}
                   <div className="w-32 h-32 bg-gray-200 rounded-lg overflow-hidden flex-shrink-0">
                     {property.images?.[0] ? (
@@ -263,7 +263,7 @@ const AdminPropertyManagement = () => {
                   
                   {/* Details */}
                   <div className="flex-1">
-                    <div className="flex items-start justify-between">
+                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
                       <div>
                         <div className="flex items-center">
                           <h3 className="text-lg font-semibold text-gray-900">
@@ -286,7 +286,18 @@ const AdminPropertyManagement = () => {
                             {property.bedrooms} bed, {property.bathrooms} bath
                           </span>
                           <span className="text-sm font-semibold text-primary-600">
-                            KSh {property.price?.toLocaleString()}/month
+                            {(() => {
+                              const rawPrice = property.price;
+                              const amount =
+                                typeof rawPrice === 'number'
+                                  ? rawPrice
+                                  : rawPrice?.amount;
+                              return `KSh ${
+                                typeof amount === 'number'
+                                  ? amount.toLocaleString()
+                                  : '0'
+                              }/month`;
+                            })()}
                           </span>
                         </div>
                       </div>
@@ -304,7 +315,7 @@ const AdminPropertyManagement = () => {
                     </div>
 
                     {/* Stats */}
-                    <div className="flex items-center space-x-6 mt-4 text-sm text-gray-500">
+                    <div className="flex flex-wrap gap-x-4 gap-y-2 mt-4 text-sm text-gray-500">
                       <span className="flex items-center">
                         <Eye className="h-4 w-4 mr-1" />
                         {property.stats?.views || 0} views
@@ -326,7 +337,7 @@ const AdminPropertyManagement = () => {
                     </div>
 
                     {/* Landlord Info */}
-                    <div className="flex items-center mt-3 text-sm text-gray-600">
+                    <div className="flex flex-wrap items-center mt-3 text-sm text-gray-600">
                       <span className="font-medium mr-2">Landlord:</span>
                       {property.landlord?.name || 'Unknown'}
                       <span className="mx-2">•</span>
@@ -336,7 +347,7 @@ const AdminPropertyManagement = () => {
                 </div>
 
                 {/* Actions */}
-                <div className="flex flex-col space-y-2">
+                <div className="mt-4 lg:mt-0 flex flex-col space-y-2">
                   {property.status === 'pending' && (
                     <>
                       <button

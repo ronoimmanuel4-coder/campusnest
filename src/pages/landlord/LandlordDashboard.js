@@ -76,8 +76,19 @@ const LandlordDashboard = () => {
       console.log('Properties Count:', propertiesData.length);
       
       setProperties(Array.isArray(propertiesData) ? propertiesData : []);
-      setStats(statsRes.data.stats || {});
-      setInquiries(inquiriesRes.data.inquiries || []);
+      const statsData =
+        statsRes.data?.data?.stats ||
+        statsRes.data?.stats ||
+        {};
+
+      setStats(statsData);
+
+      const inquiriesData =
+        inquiriesRes.data?.data?.inquiries ||
+        inquiriesRes.data?.inquiries ||
+        [];
+
+      setInquiries(Array.isArray(inquiriesData) ? inquiriesData : []);
     } catch (error) {
       console.error('Failed to load dashboard data:', error);
       console.error('Error details:', error.response?.data);
@@ -143,6 +154,122 @@ const LandlordDashboard = () => {
     fetchDashboardData();
   };
 
+  const handleCallInquirer = (inquiry) => {
+    const phone = inquiry?.user?.phone;
+    if (!phone) {
+      toast.error('No phone number available for this inquirer');
+      return;
+    }
+
+    window.location.href = `tel:${phone}`;
+  };
+
+  const handleEmailInquirer = (inquiry) => {
+    const email = inquiry?.user?.email;
+    if (!email) {
+      toast.error('No email address available for this inquirer');
+      return;
+    }
+
+    const subject = encodeURIComponent(
+      `Inquiry about ${inquiry?.property?.title || 'your property inquiry'}`
+    );
+    const body = encodeURIComponent(
+      `Hi ${inquiry?.user?.name || ''},\n\n` +
+      `Regarding your ${
+        inquiry?.type === 'viewing' ? 'viewing request' : 'inquiry'
+      } for ${inquiry?.property?.title || 'the property'}.\n\n` +
+      'Best regards,\n' +
+      (user?.name || 'Landlord')
+    );
+
+    window.location.href = `mailto:${email}?subject=${subject}&body=${body}`;
+  };
+
+  const handleWhatsAppInquirer = (inquiry) => {
+    const phone = inquiry?.user?.phone;
+    if (!phone) {
+      toast.error('No phone number available for this inquirer');
+      return;
+    }
+
+    // Remove non-digit characters to make a valid WhatsApp number
+    const normalized = phone.replace(/[^0-9]/g, '');
+    const message = encodeURIComponent(
+      `Hi ${inquiry?.user?.name || ''}, I am contacting you about your ${
+        inquiry?.type === 'viewing' ? 'viewing request' : 'inquiry'
+      } for ${inquiry?.property?.title || 'the property'}.`
+    );
+
+    const url = `https://wa.me/${normalized}?text=${message}`;
+    window.open(url, '_blank');
+  };
+
+  const landlordActivityData = [
+    { label: 'Views', value: stats.totalViews || 0 },
+    { label: 'Inquiries', value: stats.totalInquiries || 0 },
+    { label: 'Properties', value: stats.totalProperties || 0 }
+  ];
+
+  const landlordActivityMax = landlordActivityData.reduce(
+    (max, item) => Math.max(max, item.value || 0),
+    0
+  );
+
+  const propertyViewsData = properties.map((property) => ({
+    label: property.title || 'Property',
+    value: property.stats?.views || property.views || 0
+  }));
+
+  const propertyViewsMax = propertyViewsData.reduce(
+    (max, item) => Math.max(max, item.value || 0),
+    0
+  );
+
+  const inquirySourcesData = [
+    {
+      label: 'Inquiries',
+      value: inquiries.filter((inq) => inq.type !== 'viewing').length
+    },
+    {
+      label: 'Viewing Requests',
+      value: inquiries.filter((inq) => inq.type === 'viewing').length
+    }
+  ];
+
+  const inquirySourcesMax = inquirySourcesData.reduce(
+    (max, item) => Math.max(max, item.value || 0),
+    0
+  );
+
+  const buildLinePoints = (data, max) => {
+    if (!data.length || !max) return '';
+    const n = data.length;
+    return data
+      .map((item, index) => {
+        const x = n === 1 ? 50 : (index / (n - 1)) * 90 + 5;
+        const value = item.value || 0;
+        const y = 95 - (value / max) * 80;
+        return `${x},${y}`;
+      })
+      .join(' ');
+  };
+
+  const landlordActivityPoints = buildLinePoints(
+    landlordActivityData,
+    landlordActivityMax
+  );
+
+  const propertyViewsPoints = buildLinePoints(
+    propertyViewsData,
+    propertyViewsMax
+  );
+
+  const inquirySourcesPoints = buildLinePoints(
+    inquirySourcesData,
+    inquirySourcesMax
+  );
+
   const tabs = [
     { id: 'overview', label: 'Overview', icon: BarChart3 },
     { id: 'properties', label: 'My Properties', icon: Home },
@@ -161,11 +288,11 @@ const LandlordDashboard = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 overflow-x-hidden">
       {/* Header */}
       <div className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-4">
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 py-4">
             <div className="flex items-center space-x-4">
               <div className="relative">
                 <input
@@ -201,7 +328,7 @@ const LandlordDashboard = () => {
                 </p>
               </div>
             </div>
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-3 sm:space-x-4">
               <div className="relative">
                 <button
                   className="relative p-2 text-gray-400 hover:text-gray-600"
@@ -260,7 +387,7 @@ const LandlordDashboard = () => {
           </div>
 
           {/* Tabs */}
-          <div className="flex space-x-8 overflow-x-auto">
+          <div className="flex space-x-6 sm:space-x-8 overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0">
             {tabs.map(tab => {
               const Icon = tab.icon;
               return (
@@ -415,9 +542,41 @@ const LandlordDashboard = () => {
             {/* Recent Activity Chart */}
             <div className="bg-white rounded-lg shadow p-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Activity Overview</h3>
-              <div className="h-64 flex items-center justify-center bg-gray-50 rounded">
-                <BarChart3 className="h-12 w-12 text-gray-300" />
-                <span className="ml-3 text-gray-500">Activity Chart</span>
+              <div className="h-64 bg-gray-50 rounded px-4 py-3">
+                {!landlordActivityMax ? (
+                  <div className="flex items-center justify-center h-full text-gray-400 text-sm">
+                    No activity data yet
+                  </div>
+                ) : (
+                  <svg viewBox="0 0 100 100" className="w-full h-full">
+                    <polyline
+                      fill="none"
+                      stroke="#3b82f6"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      points={landlordActivityPoints}
+                    />
+                    {landlordActivityData.map((item, index) => {
+                      const n = landlordActivityData.length || 1;
+                      const x = n === 1 ? 50 : (index / (n - 1)) * 90 + 5;
+                      const value = item.value || 0;
+                      const y =
+                        landlordActivityMax > 0
+                          ? 95 - (value / landlordActivityMax) * 80
+                          : 95;
+                      return (
+                        <circle
+                          key={item.label || index}
+                          cx={x}
+                          cy={y}
+                          r={1.8}
+                          fill="#1d4ed8"
+                        />
+                      );
+                    })}
+                  </svg>
+                )}
               </div>
             </div>
           </div>
@@ -592,13 +751,22 @@ const LandlordDashboard = () => {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex space-x-2">
-                            <button className="text-blue-600 hover:text-blue-900">
+                            <button
+                              onClick={() => handleCallInquirer(inquiry)}
+                              className="text-blue-600 hover:text-blue-900"
+                            >
                               <Phone className="h-5 w-5" />
                             </button>
-                            <button className="text-green-600 hover:text-green-900">
+                            <button
+                              onClick={() => handleEmailInquirer(inquiry)}
+                              className="text-green-600 hover:text-green-900"
+                            >
                               <Mail className="h-5 w-5" />
                             </button>
-                            <button className="text-purple-600 hover:text-purple-900">
+                            <button
+                              onClick={() => handleWhatsAppInquirer(inquiry)}
+                              className="text-purple-600 hover:text-purple-900"
+                            >
                               <MessageSquare className="h-5 w-5" />
                             </button>
                           </div>
@@ -619,16 +787,80 @@ const LandlordDashboard = () => {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <div className="bg-white rounded-lg shadow p-6">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Views Trend</h3>
-                <div className="h-64 flex items-center justify-center bg-gray-50 rounded">
-                  <TrendingUp className="h-12 w-12 text-gray-300" />
-                  <span className="ml-3 text-gray-500">Views Chart</span>
+                <div className="h-64 bg-gray-50 rounded px-4 py-3">
+                  {!propertyViewsData.length || !propertyViewsMax ? (
+                    <div className="flex items-center justify-center h-full text-gray-400 text-sm">
+                      No views data yet
+                    </div>
+                  ) : (
+                    <svg viewBox="0 0 100 100" className="w-full h-full">
+                      <polyline
+                        fill="none"
+                        stroke="#3b82f6"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        points={propertyViewsPoints}
+                      />
+                      {propertyViewsData.slice(0, 10).map((item, index) => {
+                        const n = Math.min(propertyViewsData.length, 10) || 1;
+                        const x = n === 1 ? 50 : (index / (n - 1)) * 90 + 5;
+                        const value = item.value || 0;
+                        const y =
+                          propertyViewsMax > 0
+                            ? 95 - (value / propertyViewsMax) * 80
+                            : 95;
+                        return (
+                          <circle
+                            key={`${item.label}-${index}`}
+                            cx={x}
+                            cy={y}
+                            r={1.8}
+                            fill="#1d4ed8"
+                          />
+                        );
+                      })}
+                    </svg>
+                  )}
                 </div>
               </div>
               <div className="bg-white rounded-lg shadow p-6">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Inquiry Sources</h3>
-                <div className="h-64 flex items-center justify-center bg-gray-50 rounded">
-                  <Users className="h-12 w-12 text-gray-300" />
-                  <span className="ml-3 text-gray-500">Sources Chart</span>
+                <div className="h-64 bg-gray-50 rounded px-4 py-3">
+                  {!inquirySourcesMax ? (
+                    <div className="flex items-center justify-center h-full text-gray-400 text-sm">
+                      No inquiries yet
+                    </div>
+                  ) : (
+                    <svg viewBox="0 0 100 100" className="w-full h-full">
+                      <polyline
+                        fill="none"
+                        stroke="#22c55e"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        points={inquirySourcesPoints}
+                      />
+                      {inquirySourcesData.map((item, index) => {
+                        const n = inquirySourcesData.length || 1;
+                        const x = n === 1 ? 50 : (index / (n - 1)) * 90 + 5;
+                        const value = item.value || 0;
+                        const y =
+                          inquirySourcesMax > 0
+                            ? 95 - (value / inquirySourcesMax) * 80
+                            : 95;
+                        return (
+                          <circle
+                            key={item.label || index}
+                            cx={x}
+                            cy={y}
+                            r={1.8}
+                            fill="#16a34a"
+                          />
+                        );
+                      })}
+                    </svg>
+                  )}
                 </div>
               </div>
             </div>
