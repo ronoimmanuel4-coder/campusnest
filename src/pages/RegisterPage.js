@@ -21,8 +21,18 @@ const RegisterPage = () => {
   
   const onSubmit = async (data) => {
     try {
-      await registerUser({ ...data, role });
-      navigate('/');
+      let phone = data.phone.trim();
+
+      if (phone.startsWith('0')) {
+        phone = '+254' + phone.substring(1);
+      } else if (phone.startsWith('254')) {
+        phone = '+' + phone;
+      } else if (!phone.startsWith('+254')) {
+        phone = '+254' + phone;
+      }
+
+      await registerUser({ ...data, phone, role });
+      navigate('/dashboard');
     } catch (error) {
       console.error('Registration error:', error);
     }
@@ -154,14 +164,14 @@ const RegisterPage = () => {
                     {...register('phone', {
                       required: 'Phone number is required',
                       pattern: {
-                        value: /^\+254\d{9}$/,
-                        message: 'Enter a valid Kenyan phone number (+254...)'
+                        value: /^(?:254|\+254|0)?(7\d{8})$/,
+                        message: 'Enter a valid Kenyan phone number (07... or +254...)'
                       }
                     })}
                     type="tel"
                     autoComplete="tel"
                     className="appearance-none block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-primary-500 focus:border-primary-500"
-                    placeholder="+254712345678"
+                    placeholder="e.g., 0712345678 or +254712345678"
                   />
                 </div>
                 {errors.phone && (

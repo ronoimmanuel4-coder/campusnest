@@ -38,13 +38,13 @@ router.post('/send-inquiry', protect, async (req, res) => {
       });
     }
     
-    // Check if user has unlocked the property
+    // Check if user has unlocked the property (admins bypass this check)
     const user = await User.findById(req.user._id);
     const hasUnlocked = user.unlockedProperties.some(
       up => up.property.toString() === propertyId
     );
     
-    if (!hasUnlocked) {
+    if (!hasUnlocked && user.role !== 'admin') {
       return res.status(403).json({
         success: false,
         message: 'You must unlock the property to contact the caretaker'
@@ -144,13 +144,13 @@ router.post('/schedule-viewing', protect, async (req, res) => {
       });
     }
     
-    // Check if user has unlocked the property
+    // Check if user has unlocked the property (admins bypass this check)
     const user = await User.findById(req.user._id);
     const hasUnlocked = user.unlockedProperties.some(
       up => up.property.toString() === propertyId
     );
     
-    if (!hasUnlocked) {
+    if (!hasUnlocked && user.role !== 'admin') {
       return res.status(403).json({
         success: false,
         message: 'You must unlock the property to schedule a viewing'

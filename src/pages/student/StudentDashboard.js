@@ -4,12 +4,14 @@ import {
   Coffee, Bus, Wifi, ShoppingCart, Clock, Star, TrendingUp,
   MapPin, DollarSign, Filter, MessageSquare, Shield, AlertCircle,
   Navigation, Building, Utensils, Library, Activity, Zap,
-  Phone, Bookmark, Share2, Calculator, CreditCard, Award
+  Phone, Bookmark, Share2, Calculator, CreditCard, Award, Settings
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { propertiesAPI, usersAPI } from '../../services/api';
 import toast from 'react-hot-toast';
 
 const StudentDashboard = () => {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('discover');
   const [nearbyProperties, setNearbyProperties] = useState([]);
   const [savedProperties, setSavedProperties] = useState([]);
@@ -349,6 +351,14 @@ const StudentDashboard = () => {
                   </div>
                 )}
               </div>
+              <button
+                type="button"
+                onClick={() => navigate('/profile')}
+                className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center"
+                title="Settings"
+              >
+                <Settings className="h-5 w-5" />
+              </button>
               <div className="bg-white/20 rounded-lg px-4 py-2">
                 <p className="text-sm">Budget Range</p>
                 <p className="font-semibold">KSh {budget.min} - {budget.max}</p>

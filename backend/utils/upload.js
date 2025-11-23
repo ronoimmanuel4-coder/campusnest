@@ -34,7 +34,7 @@ const fileFilter = (req, file, cb) => {
 exports.upload = multer({
   storage: storage,
   limits: {
-    fileSize: 5 * 1024 * 1024 // 5MB limit
+    fileSize: 15 * 1024 * 1024 // 15MB limit
   },
   fileFilter: fileFilter
 });
@@ -168,7 +168,7 @@ const localStorage = multer.diskStorage({
 exports.uploadLocal = multer({
   storage: localStorage,
   limits: {
-    fileSize: 5 * 1024 * 1024 // 5MB limit
+    fileSize: 15 * 1024 * 1024 // 15MB limit
   },
   fileFilter: fileFilter
 });
@@ -207,7 +207,7 @@ exports.processImage = async (file, options = {}) => {
 };
 
 // Validate file size and type
-exports.validateFile = (file, maxSize = 5 * 1024 * 1024, allowedTypes = ['image/jpeg', 'image/png', 'image/gif']) => {
+exports.validateFile = (file, maxSize = 15 * 1024 * 1024, allowedTypes = ['image/jpeg', 'image/png', 'image/gif']) => {
   const errors = [];
   
   if (file.size > maxSize) {

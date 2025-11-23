@@ -83,7 +83,8 @@ router.get('/', optionalAuth, async (req, res) => {
     
     // Check which properties user has unlocked (if authenticated)
     let unlockedPropertyIds = [];
-    if (req.user) {
+    const isAdmin = req.user && req.user.role === 'admin';
+    if (req.user && !isAdmin) {
       const user = await User.findById(req.user._id);
       unlockedPropertyIds = user.unlockedProperties.map(up => up.property.toString());
     }
@@ -91,7 +92,7 @@ router.get('/', optionalAuth, async (req, res) => {
     // Format response
     const formattedProperties = properties.map(property => {
       const propertyObj = property.toObject();
-      const isUnlocked = unlockedPropertyIds.includes(property._id.toString());
+      const isUnlocked = isAdmin || unlockedPropertyIds.includes(property._id.toString());
       
       if (!isUnlocked) {
         delete propertyObj.premiumDetails;
@@ -488,7 +489,6 @@ router.post('/',
     body('description').notEmpty().withMessage('Description is required'),
     body('price').isNumeric().withMessage('Price must be a number'),
     body('area').notEmpty().withMessage('Area is required'),
-    body('exactAddress').notEmpty().withMessage('Exact address is required'),
     body('caretakerName').notEmpty().withMessage('Caretaker name is required'),
     body('caretakerPhone').notEmpty().withMessage('Caretaker phone is required'),
     body('propertyType').notEmpty().withMessage('Property type is required'),
@@ -535,7 +535,6 @@ router.post('/',
           }
         },
         premiumDetails: {
-          exactAddress: req.body.exactAddress,
           gpsCoordinates: {
             latitude: req.body.latitude,
             longitude: req.body.longitude
@@ -613,6 +612,7 @@ router.post('/',
 // @access  Private (Owner/Admin)
 router.put('/:id', 
   protect,
+  upload.array('images', 10),
   async (req, res) => {
     try {
       console.log('=== UPDATE PROPERTY REQUEST ===');
@@ -642,9 +642,82 @@ router.put('/:id',
         });
       }
       
-      // Update fields
-      const updates = { ...req.body };
-      delete updates.landlord; // Prevent changing owner
+      // Determine if this is a multipart (FormData) update or JSON body
+      const contentType = req.headers['content-type'] || '';
+      let updates = {};
+
+      if (contentType.includes('multipart/form-data')) {
+        console.log('Processing multipart/form-data update');
+
+        // Map simple fields from FormData to nested schema paths
+        if (req.body.title) {
+          updates.title = req.body.title;
+        }
+        if (req.body.description) {
+          updates.description = req.body.description;
+        }
+        if (req.body.area) {
+          updates['location.area'] = req.body.area;
+        }
+        if (req.body.distanceValue) {
+          updates['location.distanceFromCampus.value'] = Number(req.body.distanceValue);
+        }
+        if (req.body.nearestCampus) {
+          updates['location.nearestCampus'] = req.body.nearestCampus;
+        }
+        if (req.body.latitude && req.body.longitude) {
+          updates['premiumDetails.gpsCoordinates.latitude'] = Number(req.body.latitude);
+          updates['premiumDetails.gpsCoordinates.longitude'] = Number(req.body.longitude);
+        }
+
+        if (req.body.priceAmount) {
+          updates['price.amount'] = Number(req.body.priceAmount);
+        }
+        if (req.body.availabilityVacancies) {
+          updates['availability.vacancies'] = Number(req.body.availabilityVacancies);
+        }
+        if (req.body.status) {
+          updates.status = req.body.status;
+        }
+
+        // Handle images: remove selected and add new uploads
+        let updatedImages = property.images || [];
+
+        if (req.body.removeImageIds) {
+          const raw = req.body.removeImageIds;
+          const ids = Array.isArray(raw)
+            ? raw
+            : String(raw)
+                .split(',')
+                .map(id => id.trim())
+                .filter(Boolean);
+
+          if (ids.length > 0) {
+            updatedImages = updatedImages.filter(img => {
+              const imgId = img.cloudinaryId || img._id?.toString() || img.url;
+              return !ids.includes(imgId);
+            });
+          }
+        }
+
+        if (req.files && req.files.length > 0) {
+          console.log('Uploading new images for property update');
+          const uploadPromises = req.files.map(file => uploadToCloudinary(file));
+          const results = await Promise.all(uploadPromises);
+          const newImages = results.map((result) => ({
+            url: result.secure_url,
+            cloudinaryId: result.public_id,
+            isMain: false
+          }));
+          updatedImages = [...updatedImages, ...newImages];
+        }
+
+        updates.images = updatedImages;
+      } else {
+        // Fallback: JSON body (used by admin tools and older clients)
+        updates = { ...req.body };
+        delete updates.landlord; // Prevent changing owner
+      }
       
       console.log('Applying updates:', updates);
       

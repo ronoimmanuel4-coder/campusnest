@@ -6,11 +6,13 @@ import {
   ChevronLeft, ChevronRight, Star, CreditCard, Navigation, ExternalLink
 } from 'lucide-react';
 import { propertiesAPI, paymentsAPI, whatsappAPI } from '../services/api';
+import useAuthStore from '../stores/authStore';
 import toast from 'react-hot-toast';
 import Loader from '../components/Loader';
 
 const PropertyDetailPage = () => {
   const { id } = useParams();
+  const { user } = useAuthStore();
   const [property, setProperty] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
@@ -84,8 +86,9 @@ const PropertyDetailPage = () => {
 
   const propertyType = property.specifications?.propertyType || property.propertyType || 'Apartment';
   
-  // Check if property is unlocked
-  const isUnlocked = property.unlocked || property.isUnlocked || false;
+  const isAdmin = user?.role === 'admin';
+  // Check if property is unlocked (admins always treated as unlocked)
+  const isUnlocked = isAdmin || property.unlocked || property.isUnlocked || false;
   
   // Extract premium details
   const exactLocation = isUnlocked 
@@ -171,7 +174,7 @@ const PropertyDetailPage = () => {
   };
 
   const openScheduleModal = () => {
-    if (!isUnlocked) {
+    if (!isUnlocked && !isAdmin) {
       toast.error('Please unlock premium details before scheduling a viewing.');
       return;
     }

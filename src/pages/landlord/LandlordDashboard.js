@@ -5,14 +5,14 @@ import {
   Clock, CheckCircle, AlertCircle, MapPin, Bed, Bath,
   Car, Wifi, Shield, Phone, Mail, UserCheck, RefreshCw, Camera
 } from 'lucide-react';
-import { propertiesAPI, usersAPI } from '../../services/api';
+import { propertiesAPI, usersAPI, authAPI } from '../../services/api';
 import toast from 'react-hot-toast';
 import AddPropertyModal from '../../components/landlord/AddPropertyModal';
 import EditPropertyModal from '../../components/landlord/EditPropertyModal';
 import useAuthStore from '../../stores/authStore';
 
 const LandlordDashboard = () => {
-  const { user } = useAuthStore();
+  const { user, fetchUser } = useAuthStore();
   const [activeTab, setActiveTab] = useState('overview');
   const [properties, setProperties] = useState([]);
   const [tenants, setTenants] = useState([]);
@@ -26,15 +26,49 @@ const LandlordDashboard = () => {
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [profileForm, setProfileForm] = useState({
+    name: '',
+    email: '',
+    phone: ''
+  });
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  });
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [isSavingPassword, setIsSavingPassword] = useState(false);
 
   useEffect(() => {
-    console.log('=== LANDLORD USER INFO ===');
-    console.log('Current User:', user);
-    console.log('User ID:', user?._id);
-    console.log('User Role:', user?.role);
-    fetchDashboardData();
-    fetchNotifications();
+    const init = async () => {
+      console.log('=== LANDLORD USER INFO ===');
+      console.log('Current User (before refresh):', user);
+      console.log('User ID:', user?._id);
+      console.log('User Role:', user?.role);
+
+      // Refresh user from backend so latest isApproved/isBanned/etc. are used
+      try {
+        await fetchUser();
+      } catch (error) {
+        console.error('Failed to refresh user in landlord dashboard:', error);
+      }
+
+      await fetchDashboardData();
+      await fetchNotifications();
+    };
+
+    init();
   }, []);
+
+  useEffect(() => {
+    if (user) {
+      setProfileForm({
+        name: user.name || '',
+        email: user.email || '',
+        phone: user.phone || ''
+      });
+    }
+  }, [user]);
 
   const fetchDashboardData = async () => {
     try {
@@ -123,8 +157,8 @@ const LandlordDashboard = () => {
     const file = e.target.files[0];
     if (!file) return;
 
-    if (file.size > 5000000) {
-      toast.error('Image size should be less than 5MB');
+    if (file.size > 15 * 1024 * 1024) {
+      toast.error('Image size should be less than 15MB');
       return;
     }
 
@@ -203,6 +237,81 @@ const LandlordDashboard = () => {
 
     const url = `https://wa.me/${normalized}?text=${message}`;
     window.open(url, '_blank');
+  };
+
+  const handleProfileInputChange = (e) => {
+    const { name, value } = e.target;
+    setProfileForm((prev) => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const handlePasswordInputChange = (e) => {
+    const { name, value } = e.target;
+    setPasswordForm((prev) => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const handleSaveProfile = async (e) => {
+    e.preventDefault();
+    try {
+      setIsSavingProfile(true);
+      let phone = profileForm.phone.trim();
+
+      if (phone) {
+        if (phone.startsWith('0')) {
+          phone = '+254' + phone.substring(1);
+        } else if (phone.startsWith('254')) {
+          phone = '+' + phone;
+        } else if (!phone.startsWith('+254')) {
+          phone = '+254' + phone;
+        }
+      }
+
+      await usersAPI.updateProfile({
+        name: profileForm.name,
+        email: profileForm.email,
+        phone
+      });
+
+      await fetchUser();
+      toast.success('Profile updated successfully');
+    } catch (error) {
+      const message = error.response?.data?.message || 'Failed to update profile';
+      toast.error(message);
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
+
+  const handleSavePassword = async (e) => {
+    e.preventDefault();
+    if (!passwordForm.currentPassword || !passwordForm.newPassword || !passwordForm.confirmPassword) {
+      toast.error('Please fill in all password fields');
+      return;
+    }
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      toast.error('New passwords do not match');
+      return;
+    }
+
+    try {
+      setIsSavingPassword(true);
+      await authAPI.updatePassword({
+        currentPassword: passwordForm.currentPassword,
+        newPassword: passwordForm.newPassword
+      });
+      toast.success('Password updated successfully');
+      setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+    } catch (error) {
+      const message = error.response?.data?.message || 'Failed to update password';
+      toast.error(message);
+    } finally {
+      setIsSavingPassword(false);
+    }
   };
 
   const landlordActivityData = [
@@ -577,6 +686,144 @@ const LandlordDashboard = () => {
                     })}
                   </svg>
                 )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Settings Tab */}
+        {activeTab === 'settings' && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            {/* Profile Settings */}
+            <div className="bg-white rounded-lg shadow p-6 lg:col-span-2">
+              <h2 className="text-xl font-bold text-gray-900 mb-4">Profile Settings</h2>
+              <form onSubmit={handleSaveProfile} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+                  <input
+                    type="text"
+                    name="name"
+                    value={profileForm.name}
+                    onChange={handleProfileInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
+                    placeholder="Enter your full name"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
+                  <input
+                    type="email"
+                    name="email"
+                    value={profileForm.email}
+                    onChange={handleProfileInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
+                    placeholder="Enter your email address"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
+                  <input
+                    type="tel"
+                    name="phone"
+                    value={profileForm.phone}
+                    onChange={handleProfileInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
+                    placeholder="e.g., 0712345678 or +254712345678"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Kenyan number; you can type 07... and it will be saved as +254...
+                  </p>
+                </div>
+
+                <div className="flex justify-end">
+                  <button
+                    type="submit"
+                    disabled={isSavingProfile}
+                    className={`btn-primary ${isSavingProfile ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  >
+                    {isSavingProfile ? 'Saving...' : 'Save Changes'}
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            {/* Password Settings */}
+            <div className="bg-white rounded-lg shadow p-6">
+              <h2 className="text-xl font-bold text-gray-900 mb-4">Password Settings</h2>
+              <form onSubmit={handleSavePassword} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Current Password</label>
+                  <input
+                    type="password"
+                    name="currentPassword"
+                    value={passwordForm.currentPassword}
+                    onChange={handlePasswordInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
+                    placeholder="Enter current password"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">New Password</label>
+                  <input
+                    type="password"
+                    name="newPassword"
+                    value={passwordForm.newPassword}
+                    onChange={handlePasswordInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
+                    placeholder="Enter new password"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Confirm New Password</label>
+                  <input
+                    type="password"
+                    name="confirmPassword"
+                    value={passwordForm.confirmPassword}
+                    onChange={handlePasswordInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
+                    placeholder="Re-enter new password"
+                  />
+                </div>
+
+                <div className="flex justify-end">
+                  <button
+                    type="submit"
+                    disabled={isSavingPassword}
+                    className={`btn-primary ${isSavingPassword ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  >
+                    {isSavingPassword ? 'Updating...' : 'Update Password'}
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            {/* Contact Admin */}
+            <div className="bg-white rounded-lg shadow p-6 h-fit">
+              <h2 className="text-xl font-bold text-gray-900 mb-2">Need Help?</h2>
+              <p className="text-sm text-gray-600 mb-4">
+                For urgent issues, complaints, or account problems, you can reach the CampusNest admin directly.
+              </p>
+              <div className="space-y-3">
+                <button
+                  type="button"
+                  onClick={() => window.location.href = 'tel:0741218862'}
+                  className="w-full inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700"
+                >
+                  <Phone className="h-4 w-4 mr-2" />
+                  Call Admin (0741 218 862)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => window.open('https://wa.me/254741218862', '_blank')}
+                  className="w-full inline-flex items-center justify-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-green-700 bg-white hover:bg-gray-50"
+                >
+                  <MessageSquare className="h-4 w-4 mr-2" />
+                  WhatsApp Admin
+                </button>
               </div>
             </div>
           </div>

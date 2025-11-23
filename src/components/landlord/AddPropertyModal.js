@@ -38,8 +38,8 @@ const AddPropertyModal = ({ isOpen, onClose, onSuccess }) => {
     const newPreviews = [];
 
     files.forEach(file => {
-      if (file.size > 5000000) {
-        toast.error('Image size should be less than 5MB');
+      if (file.size > 15 * 1024 * 1024) {
+        toast.error('Image size should be less than 15MB');
         return;
       }
 
@@ -115,7 +115,6 @@ const AddPropertyModal = ({ isOpen, onClose, onSuccess }) => {
       
       // Add location fields
       formData.append('area', data.area);
-      formData.append('exactAddress', data.exactAddress);
       formData.append('distanceValue', data.distanceValue || 0);
       if (data.nearestCampus) {
         formData.append('nearestCampus', data.nearestCampus);
@@ -359,21 +358,6 @@ const AddPropertyModal = ({ isOpen, onClose, onSuccess }) => {
                 )}
               </div>
 
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Full Address *
-                </label>
-                <textarea
-                  {...register('exactAddress', { required: 'Address is required' })}
-                  rows="2"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-primary-500 focus:border-primary-500"
-                  placeholder="Enter complete address"
-                />
-                {errors.exactAddress && (
-                  <p className="text-red-500 text-sm mt-1">{errors.exactAddress.message}</p>
-                )}
-              </div>
-
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Nearest Campus
@@ -538,7 +522,7 @@ const AddPropertyModal = ({ isOpen, onClose, onSuccess }) => {
                   Click to upload images
                 </span>
                 <span className="text-xs text-gray-500 mt-1">
-                  PNG, JPG up to 5MB each
+                  PNG, JPG up to 15MB each
                 </span>
               </label>
             </div>

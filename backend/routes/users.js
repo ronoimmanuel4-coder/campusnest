@@ -77,6 +77,7 @@ router.put('/profile',
   upload.single('avatar'),
   [
     body('name').optional().notEmpty().withMessage('Name cannot be empty'),
+    body('email').optional().isEmail().withMessage('Please provide a valid email'),
     body('phone').optional().matches(/^\+254\d{9}$/).withMessage('Invalid phone number'),
     body('university').optional().notEmpty().withMessage('University cannot be empty'),
     body('studentId').optional().notEmpty().withMessage('Student ID cannot be empty')
@@ -85,7 +86,7 @@ router.put('/profile',
   async (req, res) => {
     try {
       const updates = {};
-      const allowedFields = ['name', 'phone', 'university', 'studentId'];
+      const allowedFields = ['name', 'email', 'phone', 'university', 'studentId'];
       
       // Filter allowed fields
       allowedFields.forEach(field => {

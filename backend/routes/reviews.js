@@ -99,13 +99,13 @@ router.post('/',
         });
       }
       
-      // Check if user has unlocked this property
+      // Check if user has unlocked this property (admins bypass this check)
       const user = await User.findById(req.user._id);
       const hasUnlocked = user.unlockedProperties.some(
         up => up.property.toString() === propertyId
       );
       
-      if (!hasUnlocked) {
+      if (!hasUnlocked && user.role !== 'admin') {
         return res.status(403).json({
           success: false,
           message: 'You must unlock the property before reviewing it'

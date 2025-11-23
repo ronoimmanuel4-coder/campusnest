@@ -58,7 +58,7 @@ const propertySchema = new mongoose.Schema({
   premiumDetails: {
     exactAddress: {
       type: String,
-      required: [true, 'Please provide the exact address']
+      required: false
     },
     gpsCoordinates: {
       latitude: Number,
