@@ -5,6 +5,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
+    "build": "echo \"Skipping build step for backend\" && exit 0",
     "dev": "nodemon server.js",
     "test": "jest"
   },
