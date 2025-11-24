@@ -673,7 +673,7 @@ router.put('/:id',
         if (req.body.priceAmount) {
           updates['price.amount'] = Number(req.body.priceAmount);
         }
-        if (req.body.availabilityVacancies) {
+        if (typeof req.body.availabilityVacancies !== 'undefined') {
           updates['availability.vacancies'] = Number(req.body.availabilityVacancies);
         }
         if (req.body.status) {
