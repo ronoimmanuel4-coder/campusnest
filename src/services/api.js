@@ -90,7 +90,14 @@ export const propertiesAPI = {
       headers: { 'Content-Type': 'multipart/form-data' }
     });
   },
-  updateProperty: (id, data) => api.put(`/properties/${id}`, data),
+  updateProperty: (id, data) => {
+    if (data instanceof FormData) {
+      return api.put(`/properties/${id}`, data, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+    }
+    return api.put(`/properties/${id}`, data);
+  },
   update: (id, data) => api.put(`/properties/${id}`, data),
   delete: (id) => api.delete(`/properties/${id}`),
   save: (id) => api.post(`/properties/${id}/save`),

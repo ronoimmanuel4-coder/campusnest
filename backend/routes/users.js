@@ -136,7 +136,7 @@ router.get('/unlocked-properties', protect, async (req, res) => {
     const user = await User.findById(req.user._id)
       .populate({
         path: 'unlockedProperties.property',
-        select: 'title location price images premiumDetails specifications amenities'
+        select: 'title location price images premiumDetails specifications amenities availability status'
       });
     
     const unlockedProperties = user.unlockedProperties.map(item => ({
