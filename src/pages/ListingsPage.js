@@ -11,6 +11,7 @@ const ListingsPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [priceRange, setPriceRange] = useState('all');
   const [bedrooms, setBedrooms] = useState('all');
+  const [houseType, setHouseType] = useState('all');
   const [area, setArea] = useState('all');
   const [viewMode, setViewMode] = useState('grid');
   const [sortBy, setSortBy] = useState('featured');
@@ -41,10 +42,28 @@ const ListingsPage = () => {
   // Get unique areas from properties
   const areas = [...new Set(properties.map(p => p.location?.area || p.area).filter(Boolean))];
 
+  // Get unique house types from properties
+  const rawHouseTypes = properties
+    .map(p => p.specifications?.propertyType || p.propertyType)
+    .filter(Boolean);
+  const uniqueHouseTypes = [...new Set(rawHouseTypes)];
+  const houseTypeLabels = {
+    bedsitter: 'Bedsitter',
+    studio: 'Studio',
+    '1br': '1 Bedroom',
+    '2br': '2 Bedroom',
+    '3br': '3 Bedroom',
+    house: 'House',
+    hostel: 'Hostel',
+    shared: 'Shared Room',
+    apartment: 'Apartment'
+  };
+
   // Filter properties
   const filteredProperties = properties.filter(property => {
     const propertyArea = property.location?.area || property.area || '';
     const propertyBedrooms = property.specifications?.bedrooms || property.bedrooms || 0;
+    const propertyTypeRaw = property.specifications?.propertyType || property.propertyType || '';
     
     const matchesSearch = property.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           (property.description || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -57,8 +76,9 @@ const ListingsPage = () => {
     
     const matchesBedrooms = bedrooms === 'all' || propertyBedrooms === parseInt(bedrooms);
     const matchesArea = area === 'all' || propertyArea === area;
+    const matchesHouseType = houseType === 'all' || propertyTypeRaw === houseType;
 
-    return matchesSearch && matchesPrice && matchesBedrooms && matchesArea;
+    return matchesSearch && matchesPrice && matchesBedrooms && matchesArea && matchesHouseType;
   });
 
   // Sort properties
@@ -127,6 +147,22 @@ const ListingsPage = () => {
               </select>
             </div>
 
+            {/* House Type Filter */}
+            <div>
+              <select
+                value={houseType}
+                onChange={(e) => setHouseType(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-primary-500"
+              >
+                <option value="all">All House Types</option>
+                {uniqueHouseTypes.map(type => (
+                  <option key={type} value={type}>
+                    {houseTypeLabels[type] || (type.charAt(0).toUpperCase() + type.slice(1))}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             {/* Area Filter */}
             <div>
               <select
@@ -181,7 +217,7 @@ const ListingsPage = () => {
 
         {/* Properties Grid/List */}
         {sortedProperties.length > 0 ? (
-          <div className={viewMode === 'grid' ? 'grid md:grid-cols-2 lg:grid-cols-3 gap-6' : 'space-y-6'}>
+          <div className={viewMode === 'grid' ? 'grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-6' : 'space-y-6'}>
             {sortedProperties.map((property) => (
               <PropertyCard key={property.id} property={property} />
             ))}
@@ -194,6 +230,7 @@ const ListingsPage = () => {
                 setSearchTerm('');
                 setPriceRange('all');
                 setBedrooms('all');
+                setHouseType('all');
                 setArea('all');
               }}
               className="mt-4 text-primary-600 hover:text-primary-700 font-medium"

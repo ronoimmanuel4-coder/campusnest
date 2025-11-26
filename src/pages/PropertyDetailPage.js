@@ -46,6 +46,17 @@ const PropertyDetailPage = () => {
     }
   };
 
+  useEffect(() => {
+    const length = property?.images?.length || 0;
+    if (!length) return;
+
+    const interval = setInterval(() => {
+      setCurrentImageIndex((prev) => (prev + 1) % length);
+    }, 4000);
+
+    return () => clearInterval(interval);
+  }, [property?.images?.length]);
+
   if (isLoading) {
     return <Loader />;
   }
@@ -68,9 +79,6 @@ const PropertyDetailPage = () => {
   const propertyImages = images.map(img => typeof img === 'string' ? img : img.url);
   const bedrooms = property.specifications?.bedrooms || property.bedrooms || 0;
   const bathrooms = property.specifications?.bathrooms || property.bathrooms || 0;
-  const size = property.specifications?.size?.value 
-    ? `${property.specifications.size.value} ${property.specifications.size.unit}` 
-    : property.size || 'N/A';
   const area = property.location?.area || property.area || 'Unknown Area';
 
   const priceAmount = property.price?.amount || property.price || 0;
@@ -84,7 +92,17 @@ const PropertyDetailPage = () => {
     ? `${property.location.distanceFromCampus.value} ${property.location.distanceFromCampus.unit || 'km'}`
     : property.distanceFromCampus || 'N/A';
 
-  const propertyType = property.specifications?.propertyType || property.propertyType || 'Apartment';
+  const rawPropertyType = property.specifications?.propertyType || property.propertyType || '';
+  const propertyType = {
+    bedsitter: 'Bedsitter',
+    studio: 'Studio',
+    '1br': '1 Bedroom',
+    '2br': '2 Bedroom',
+    '3br': '3 Bedroom',
+    house: 'House',
+    hostel: 'Hostel',
+    shared: 'Shared Room'
+  }[rawPropertyType] || rawPropertyType || 'Apartment';
   
   const isAdmin = user?.role === 'admin';
   // Check if property is unlocked (admins always treated as unlocked)
@@ -316,8 +334,8 @@ const PropertyDetailPage = () => {
                 </div>
                 <div className="text-center p-4 bg-gray-50 rounded-lg">
                   <Maximize className="h-6 w-6 mx-auto mb-2 text-primary-600" />
-                  <p className="text-sm text-gray-600">Size</p>
-                  <p className="font-semibold">{size}</p>
+                  <p className="text-sm text-gray-600">Property Type</p>
+                  <p className="font-semibold">{propertyType}</p>
                 </div>
               </div>
 
@@ -325,6 +343,13 @@ const PropertyDetailPage = () => {
                 <h3 className="text-xl font-semibold mb-3">Description</h3>
                 <p className="text-gray-600 leading-relaxed">{property.description}</p>
               </div>
+
+              {property.houseRules && (
+                <div className="mt-4">
+                  <h3 className="text-xl font-semibold mb-3">House Rules</h3>
+                  <p className="text-gray-600 leading-relaxed whitespace-pre-line">{property.houseRules}</p>
+                </div>
+              )}
             </div>
 
             {/* Amenities */}

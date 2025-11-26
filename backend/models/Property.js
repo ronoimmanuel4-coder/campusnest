@@ -17,6 +17,10 @@ const propertySchema = new mongoose.Schema({
     required: [true, 'Please provide a property description'],
     maxlength: [2000, 'Description cannot be more than 2000 characters']
   },
+  houseRules: {
+    type: String,
+    maxlength: [2000, 'House rules cannot be more than 2000 characters']
+  },
   price: {
     amount: {
       type: Number,
