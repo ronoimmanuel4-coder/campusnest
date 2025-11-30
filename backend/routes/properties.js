@@ -521,6 +521,7 @@ router.post('/',
       const property = await Property.create({
         title: req.body.title,
         description: req.body.description,
+        videoUrl: req.body.videoUrl,
         houseRules: req.body.houseRules,
         price: {
           amount: req.body.price,

@@ -9,6 +9,7 @@ const SupportTicket = require('../models/SupportTicket');
 const Notification = require('../models/Notification');
 const { getCampusContent, updateCampusContent } = require('../data/campusContentStore');
 const { protect, authorize } = require('../middleware/auth');
+const crypto = require('crypto');
 
 // All admin routes require authentication and admin role
 router.use(protect);
@@ -151,6 +152,99 @@ router.get('/dashboard', async (req, res) => {
   }
 });
 
+// @route   PUT /api/admin/properties/:id
+// @desc    Update core property details (admin only)
+// @access  Private (Admin)
+router.put('/properties/:id', async (req, res) => {
+  try {
+    const {
+      title,
+      description,
+      houseRules,
+      videoUrl,
+      priceAmount,
+      propertyType,
+      bedrooms,
+      bathrooms,
+      area,
+      nearestCampus,
+      exactAddress,
+      latitude,
+      longitude,
+      caretakerName,
+      caretakerPhone,
+      amenitiesEssential,
+      amenitiesSecurity,
+      amenitiesExtras,
+      vacancies,
+      status,
+      availableFrom
+    } = req.body;
+
+    const updates = {};
+
+    if (title !== undefined) updates.title = title;
+    if (description !== undefined) updates.description = description;
+    if (houseRules !== undefined) updates.houseRules = houseRules;
+    if (videoUrl !== undefined) updates.videoUrl = videoUrl;
+
+    if (priceAmount !== undefined) updates['price.amount'] = Number(priceAmount);
+    if (propertyType !== undefined) updates['specifications.propertyType'] = propertyType;
+    if (bedrooms !== undefined) updates['specifications.bedrooms'] = Number(bedrooms);
+    if (bathrooms !== undefined) updates['specifications.bathrooms'] = Number(bathrooms);
+
+    if (area !== undefined) updates['location.area'] = area;
+    if (nearestCampus !== undefined) updates['location.nearestCampus'] = nearestCampus;
+    if (exactAddress !== undefined) updates['premiumDetails.exactAddress'] = exactAddress;
+
+    if (latitude !== undefined) updates['premiumDetails.gpsCoordinates.latitude'] = Number(latitude);
+    if (longitude !== undefined) updates['premiumDetails.gpsCoordinates.longitude'] = Number(longitude);
+
+    if (caretakerName !== undefined) updates['premiumDetails.caretaker.name'] = caretakerName;
+    if (caretakerPhone !== undefined) updates['premiumDetails.caretaker.phone'] = caretakerPhone;
+
+    const parseList = (value) =>
+      typeof value === 'string'
+        ? value.split(',').map((v) => v.trim()).filter(Boolean)
+        : Array.isArray(value)
+        ? value
+        : [];
+
+    if (amenitiesEssential !== undefined) updates['amenities.essential'] = parseList(amenitiesEssential);
+    if (amenitiesSecurity !== undefined) updates['amenities.security'] = parseList(amenitiesSecurity);
+    if (amenitiesExtras !== undefined) updates['amenities.extras'] = parseList(amenitiesExtras);
+
+    if (vacancies !== undefined) updates['availability.vacancies'] = Number(vacancies);
+    if (status !== undefined) updates.status = status;
+    if (availableFrom !== undefined) updates['availability.availableFrom'] = availableFrom;
+
+    const property = await Property.findByIdAndUpdate(
+      req.params.id,
+      updates,
+      { new: true, runValidators: true }
+    ).populate('landlord', 'name email phone');
+
+    if (!property) {
+      return res.status(404).json({
+        success: false,
+        message: 'Property not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Property updated successfully',
+      data: property
+    });
+  } catch (error) {
+    console.error('Admin update property error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error updating property'
+    });
+  }
+});
+
 // Campus Events & Quick Links Management
 
 // @route   GET /api/admin/campus-content
@@ -226,16 +320,32 @@ router.get('/users', async (req, res) => {
       .sort(sortBy)
       .limit(limit * 1)
       .skip((page - 1) * limit);
-    
+
     const total = await User.countDocuments(query);
-    
+
+    // Compute property count per user (primarily for landlords)
+    const userIds = users.map(u => u._id);
+    const propertyCounts = await Property.aggregate([
+      { $match: { landlord: { $in: userIds } } },
+      { $group: { _id: '$landlord', count: { $sum: 1 } } }
+    ]);
+
+    const propertyCountMap = new Map(
+      propertyCounts.map(pc => [pc._id.toString(), pc.count])
+    );
+
+    const usersWithCounts = users.map(user => ({
+      ...user.toObject(),
+      propertyCount: propertyCountMap.get(user._id.toString()) || 0
+    }));
+
     res.json({
       success: true,
-      count: users.length,
+      count: usersWithCounts.length,
       total,
       page: parseInt(page),
       pages: Math.ceil(total / limit),
-      data: users
+      data: usersWithCounts
     });
   } catch (error) {
     console.error('Get users error:', error);
@@ -247,11 +357,11 @@ router.get('/users', async (req, res) => {
 });
 
 // @route   PUT /api/admin/users/:id
-// @desc    Update user (verify, change role, etc.)
+// @desc    Update user (profile fields, verify, change role, etc.)
 // @access  Private (Admin)
 router.put('/users/:id', async (req, res) => {
   try {
-    const { isVerified, role, isActive } = req.body;
+    const { name, email, phone, address, isVerified, role, isActive } = req.body;
     
     const user = await User.findById(req.params.id);
     
@@ -262,6 +372,10 @@ router.put('/users/:id', async (req, res) => {
       });
     }
     
+    if (name !== undefined) user.name = name;
+    if (email !== undefined) user.email = email;
+    if (phone !== undefined) user.phone = phone;
+    if (address !== undefined) user.address = address;
     if (isVerified !== undefined) user.isVerified = isVerified;
     if (role) user.role = role;
     if (isActive !== undefined) user.isActive = isActive;
@@ -882,15 +996,25 @@ router.put('/users/:id/role', async (req, res) => {
 // @access  Private (Admin)
 router.put('/users/:id/reset-password', async (req, res) => {
   try {
-    const { password } = req.body;
-    
-    if (!password || password.length < 6) {
+    let { password } = req.body;
+
+    // If no password provided, generate a strong temporary one
+    if (!password) {
+      const length = 10;
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz0123456789!@#$%^&*';
+      const buffer = crypto.randomBytes(length);
+      let temp = '';
+      for (let i = 0; i < length; i++) {
+        temp += chars[buffer[i] % chars.length];
+      }
+      password = temp;
+    } else if (password.length < 6) {
       return res.status(400).json({
         success: false,
         message: 'Password must be at least 6 characters'
       });
     }
-    
+
     const user = await User.findById(req.params.id);
     
     if (!user) {
@@ -905,7 +1029,8 @@ router.put('/users/:id/reset-password', async (req, res) => {
     
     res.json({
       success: true,
-      message: 'Password reset successfully'
+      message: 'Password reset successfully',
+      temporaryPassword: password
     });
   } catch (error) {
     console.error('Reset password error:', error);
@@ -1160,17 +1285,15 @@ router.put('/properties/:id/unfeature', async (req, res) => {
 // @access  Private (Admin)
 router.delete('/properties/:id', async (req, res) => {
   try {
-    const property = await Property.findById(req.params.id);
-    
+    const property = await Property.findByIdAndDelete(req.params.id);
+
     if (!property) {
       return res.status(404).json({
         success: false,
         message: 'Property not found'
       });
     }
-    
-    await property.remove();
-    
+
     res.json({
       success: true,
       message: 'Property deleted successfully'

@@ -9,7 +9,8 @@ import toast from 'react-hot-toast';
 const UserDetailsModal = ({ user, isOpen, onClose, onUpdate }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [isResettingPassword, setIsResettingPassword] = useState(false);
-  const [newPassword, setNewPassword] = useState('');
+  const [newPassword, setNewPassword] = useState(''); // kept for compatibility but no longer used
+  const [tempPassword, setTempPassword] = useState('');
   const [editedUser, setEditedUser] = useState({
     name: user?.name || '',
     email: user?.email || '',
@@ -31,18 +32,32 @@ const UserDetailsModal = ({ user, isOpen, onClose, onUpdate }) => {
   };
 
   const handleResetPassword = async () => {
-    if (!newPassword || newPassword.length < 6) {
-      toast.error('Password must be at least 6 characters');
+    if (!window.confirm('Reset this user\'s password and generate a new temporary password?')) {
       return;
     }
 
     try {
-      await adminAPI.resetUserPassword(user._id, { password: newPassword });
-      toast.success('Password reset successfully');
-      setNewPassword('');
-      setIsResettingPassword(false);
+      const res = await adminAPI.resetUserPassword(user._id, {});
+      const generated = res.data?.temporaryPassword;
+      if (generated) {
+        setTempPassword(generated);
+        toast.success('Temporary password generated');
+      } else {
+        toast.success('Password reset successfully');
+      }
+      setIsResettingPassword(true);
     } catch (error) {
       toast.error('Failed to reset password');
+    }
+  };
+
+  const handleCopyTempPassword = async () => {
+    if (!tempPassword) return;
+    try {
+      await navigator.clipboard.writeText(tempPassword);
+      toast.success('Temporary password copied to clipboard');
+    } catch (error) {
+      toast.error('Failed to copy password');
     }
   };
 
@@ -100,7 +115,7 @@ const UserDetailsModal = ({ user, isOpen, onClose, onUpdate }) => {
                   {user.profilePicture ? (
                     <img
                       src={user.profilePicture}
-                      alt={user.name}
+                      alt={editedUser.name || user.name}
                       className="h-full w-full object-cover"
                     />
                   ) : (
@@ -112,8 +127,8 @@ const UserDetailsModal = ({ user, isOpen, onClose, onUpdate }) => {
                 )}
               </div>
               <div>
-                <h3 className="text-xl font-semibold text-gray-900">{user.name}</h3>
-                <p className="text-sm text-gray-500">{user.email}</p>
+                <h3 className="text-xl font-semibold text-gray-900">{editedUser.name || user.name}</h3>
+                <p className="text-sm text-gray-500">{editedUser.email || user.email}</p>
                 <div className="flex items-center space-x-3 mt-2">
                   <span className={`px-2 py-1 text-xs rounded-full ${
                     user.role === 'admin' ? 'bg-purple-100 text-purple-600' :
@@ -184,11 +199,11 @@ const UserDetailsModal = ({ user, isOpen, onClose, onUpdate }) => {
                     <input
                       type="text"
                       value={editedUser.name}
-                      onChange={(e) => setEditedUser({...editedUser, name: e.target.value})}
+                      onChange={(e) => setEditedUser({ ...editedUser, name: e.target.value })}
                       className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm"
                     />
                   ) : (
-                    <span className="text-sm font-medium text-gray-900">{user.name}</span>
+                    <span className="text-sm font-medium text-gray-900">{editedUser.name || user.name}</span>
                   )}
                 </div>
                 <div className="flex items-center space-x-2">
@@ -198,11 +213,11 @@ const UserDetailsModal = ({ user, isOpen, onClose, onUpdate }) => {
                     <input
                       type="email"
                       value={editedUser.email}
-                      onChange={(e) => setEditedUser({...editedUser, email: e.target.value})}
+                      onChange={(e) => setEditedUser({ ...editedUser, email: e.target.value })}
                       className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm"
                     />
                   ) : (
-                    <span className="text-sm font-medium text-gray-900">{user.email}</span>
+                    <span className="text-sm font-medium text-gray-900">{editedUser.email || user.email}</span>
                   )}
                 </div>
                 <div className="flex items-center space-x-2">
@@ -212,11 +227,11 @@ const UserDetailsModal = ({ user, isOpen, onClose, onUpdate }) => {
                     <input
                       type="tel"
                       value={editedUser.phone}
-                      onChange={(e) => setEditedUser({...editedUser, phone: e.target.value})}
+                      onChange={(e) => setEditedUser({ ...editedUser, phone: e.target.value })}
                       className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm"
                     />
                   ) : (
-                    <span className="text-sm font-medium text-gray-900">{user.phone || 'N/A'}</span>
+                    <span className="text-sm font-medium text-gray-900">{editedUser.phone || user.phone || 'N/A'}</span>
                   )}
                 </div>
                 <div className="flex items-center space-x-2">
@@ -226,11 +241,11 @@ const UserDetailsModal = ({ user, isOpen, onClose, onUpdate }) => {
                     <input
                       type="text"
                       value={editedUser.address}
-                      onChange={(e) => setEditedUser({...editedUser, address: e.target.value})}
+                      onChange={(e) => setEditedUser({ ...editedUser, address: e.target.value })}
                       className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm"
                     />
                   ) : (
-                    <span className="text-sm font-medium text-gray-900">{user.address || 'N/A'}</span>
+                    <span className="text-sm font-medium text-gray-900">{editedUser.address || user.address || 'N/A'}</span>
                   )}
                 </div>
               </div>
@@ -313,13 +328,27 @@ const UserDetailsModal = ({ user, isOpen, onClose, onUpdate }) => {
             <h4 className="font-semibold text-gray-900 mb-3">Security Settings</h4>
             {isResettingPassword ? (
               <div className="space-y-3">
-                <input
-                  type="password"
-                  placeholder="Enter new password"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                />
+                <p className="text-sm text-gray-700">
+                  Click <span className="font-semibold">Confirm Reset</span> to generate a new
+                  temporary password. Share it with the user & they must change it after login.
+                </p>
+                {tempPassword && (
+                  <div className="border border-dashed border-yellow-400 rounded-lg p-3 bg-white">
+                    <p className="text-xs text-gray-500 mb-1">
+                      Temporary password (visible once):
+                    </p>
+                    <div className="flex items-center justify-between">
+                      <span className="font-mono text-sm break-all mr-2">{tempPassword}</span>
+                      <button
+                        type="button"
+                        onClick={handleCopyTempPassword}
+                        className="px-2 py-1 text-xs bg-gray-800 text-white rounded hover:bg-gray-900"
+                      >
+                        Copy
+                      </button>
+                    </div>
+                  </div>
+                )}
                 <div className="flex space-x-2">
                   <button
                     onClick={handleResetPassword}
@@ -331,16 +360,20 @@ const UserDetailsModal = ({ user, isOpen, onClose, onUpdate }) => {
                     onClick={() => {
                       setIsResettingPassword(false);
                       setNewPassword('');
+                      setTempPassword('');
                     }}
                     className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
                   >
-                    Cancel
+                    Close
                   </button>
                 </div>
               </div>
             ) : (
               <button
-                onClick={() => setIsResettingPassword(true)}
+                onClick={() => {
+                  setIsResettingPassword(true);
+                  setTempPassword('');
+                }}
                 className="flex items-center space-x-2 px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700"
               >
                 <Lock className="h-4 w-4" />

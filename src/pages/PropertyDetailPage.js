@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { 
   ArrowLeft, Bed, Bath, Maximize, MapPin, Phone, User, 
   Calendar, Wifi, Car, Shield, Lock, Unlock, Check,
-  ChevronLeft, ChevronRight, Star, CreditCard, Navigation, ExternalLink
+  ChevronLeft, ChevronRight, Star, CreditCard, Navigation, ExternalLink, X
 } from 'lucide-react';
 import { propertiesAPI, paymentsAPI, whatsappAPI } from '../services/api';
 import useAuthStore from '../stores/authStore';
@@ -16,6 +16,7 @@ const PropertyDetailPage = () => {
   const [property, setProperty] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [isLightboxOpen, setIsLightboxOpen] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
@@ -48,14 +49,14 @@ const PropertyDetailPage = () => {
 
   useEffect(() => {
     const length = property?.images?.length || 0;
-    if (!length) return;
+    if (!length || isLightboxOpen) return;
 
     const interval = setInterval(() => {
       setCurrentImageIndex((prev) => (prev + 1) % length);
     }, 4000);
 
     return () => clearInterval(interval);
-  }, [property?.images?.length]);
+  }, [property?.images?.length, isLightboxOpen]);
 
   if (isLoading) {
     return <Loader />;
@@ -169,6 +170,15 @@ const PropertyDetailPage = () => {
     }
   };
 
+  const openLightbox = () => {
+    if (!propertyImages.length) return;
+    setIsLightboxOpen(true);
+  };
+
+  const closeLightbox = () => {
+    setIsLightboxOpen(false);
+  };
+
   const nextImage = () => {
     setCurrentImageIndex((prev) => (prev + 1) % propertyImages.length);
   };
@@ -263,7 +273,8 @@ const PropertyDetailPage = () => {
                 <img
                   src={propertyImages[currentImageIndex]}
                   alt={property.title}
-                  className="w-full h-96 object-cover"
+                  className="w-full h-96 object-cover cursor-pointer"
+                  onClick={openLightbox}
                   onError={(e) => {
                     e.target.src = '/placeholder-property.jpg';
                   }}
@@ -348,6 +359,24 @@ const PropertyDetailPage = () => {
                 <div className="mt-4">
                   <h3 className="text-xl font-semibold mb-3">House Rules</h3>
                   <p className="text-gray-600 leading-relaxed whitespace-pre-line">{property.houseRules}</p>
+                </div>
+              )}
+
+              {property.videoUrl && (
+                <div className="mt-6 border-t pt-4">
+                  <h3 className="text-xl font-semibold mb-2">TikTok Video Review</h3>
+                  <p className="text-gray-600 text-sm mb-3">
+                    Want to see more? Watch the TikTok review of this house and please follow for more student housing tours.
+                  </p>
+                  <a
+                    href={property.videoUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-900 text-sm font-medium"
+                  >
+                    Watch on TikTok
+                    <ExternalLink className="h-4 w-4 ml-2" />
+                  </a>
                 </div>
               )}
             </div>
@@ -542,6 +571,51 @@ const PropertyDetailPage = () => {
           </div>
         </div>
       </div>
+
+      {isLightboxOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50 p-4">
+          <button
+            type="button"
+            onClick={closeLightbox}
+            className="absolute top-4 right-4 text-white hover:text-gray-300"
+          >
+            <X className="h-6 w-6" />
+          </button>
+          <div className="max-w-4xl w-full flex flex-col items-center">
+            {propertyImages.length > 0 && (
+              <img
+                src={propertyImages[currentImageIndex]}
+                alt={property.title}
+                className="w-full max-h-[80vh] object-contain"
+                onError={(e) => {
+                  e.target.src = '/placeholder-property.jpg';
+                }}
+              />
+            )}
+            {propertyImages.length > 1 && (
+              <div className="flex justify-between items-center w-full mt-4">
+                <button
+                  type="button"
+                  onClick={prevImage}
+                  className="px-3 py-2 bg-white bg-opacity-10 text-white rounded hover:bg-opacity-20 text-sm"
+                >
+                  Prev
+                </button>
+                <span className="text-white text-sm">
+                  {currentImageIndex + 1} / {propertyImages.length}
+                </span>
+                <button
+                  type="button"
+                  onClick={nextImage}
+                  className="px-3 py-2 bg-white bg-opacity-10 text-white rounded hover:bg-opacity-20 text-sm"
+                >
+                  Next
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Payment Modal */}
       {showPaymentModal && (

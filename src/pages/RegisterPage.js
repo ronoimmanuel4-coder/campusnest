@@ -31,8 +31,13 @@ const RegisterPage = () => {
         phone = '+254' + phone;
       }
 
-      await registerUser({ ...data, phone, role });
-      navigate('/dashboard');
+      const result = await registerUser({ ...data, phone, role });
+
+      if (result?.user?.role === 'admin') {
+        navigate('/admin/dashboard');
+      } else {
+        navigate('/dashboard');
+      }
     } catch (error) {
       console.error('Registration error:', error);
     }

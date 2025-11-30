@@ -250,9 +250,16 @@ const AdminPropertyManagement = () => {
                   <div className="w-32 h-32 bg-gray-200 rounded-lg overflow-hidden flex-shrink-0">
                     {property.images?.[0] ? (
                       <img 
-                        src={property.images[0]} 
+                        src={
+                          typeof property.images[0] === 'string'
+                            ? property.images[0]
+                            : property.images[0]?.url
+                        }
                         alt={property.title}
                         className="w-full h-full object-cover"
+                        onError={(e) => {
+                          e.target.src = '/placeholder-property.jpg';
+                        }}
                       />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center">
@@ -413,6 +420,7 @@ const AdminPropertyManagement = () => {
           setShowPropertyModal(false);
           setSelectedProperty(null);
         }}
+        onUpdated={fetchProperties}
       />
     </div>
   );

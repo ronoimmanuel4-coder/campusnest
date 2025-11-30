@@ -149,6 +149,9 @@ const AddPropertyModal = ({ isOpen, onClose, onSuccess }) => {
       if (data.availableFrom) {
         formData.append('availableFrom', data.availableFrom);
       }
+      if (data.videoUrl) {
+        formData.append('videoUrl', data.videoUrl);
+      }
 
       // Add amenities as comma-separated values
       const selectedAmenities = Object.keys(amenities).filter(key => amenities[key]);
@@ -457,6 +460,20 @@ const AddPropertyModal = ({ isOpen, onClose, onSuccess }) => {
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-primary-500 focus:border-primary-500"
               placeholder="e.g., No pets, No smoking, Quiet hours after 10pm..."
             />
+          </div>
+
+          {/* TikTok Video Review (Optional) */}
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">TikTok Video Review</h3>
+            <input
+              type="url"
+              {...register('videoUrl')}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-primary-500 focus:border-primary-500"
+              placeholder="Paste TikTok video link for this property (optional)"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Share a TikTok tour or review of this house to help students see the real vibe.
+            </p>
           </div>
 
           {/* Contact Information */}

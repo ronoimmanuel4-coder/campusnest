@@ -188,6 +188,7 @@ export const adminAPI = {
   
   // Property Management
   getProperties: (params) => api.get('/admin/properties', { params }),
+  updateProperty: (id, data) => api.put(`/admin/properties/${id}`, data),
   verifyProperty: (id) => api.put(`/admin/properties/${id}/verify`),
   approveProperty: (id) => api.put(`/admin/properties/${id}/approve`),
   rejectProperty: (id) => api.put(`/admin/properties/${id}/reject`),
